@@ -137,9 +137,28 @@ def save_per_trial_data(policies, parsed_sessions):
 def get_policy_names(parsed_sessions):
     df = parsed_sessions.to_pandas()
     policies = df["policy_name"].dropna().unique()
-    # For some reason, pi0.5 droid is having one less entry; will debug later
     policies = [p for p in policies if p != "pi05_droid"]
     return policies
+
+def save_policy_preferences(parsed_sessions):
+    df = parsed_sessions.to_pandas()
+    preferences = {"preferred_policy": [], "non_preferred_policy": []}
+    sorted_ds = parsed_sessions.sort("session_id")
+    for row in sorted_ds:
+        session_id = row["session_id"]
+        preference = row["preference"]
+        policy_letter = row["policy_letter"]
+        policy_name = row["policy_name"]
+        if policy_name is not None:
+            if policy_letter == "A":
+                preferences["preferred_policy"].append(policy_name)
+            elif policy_letter == "B":
+                preferences["non_preferred_policy"].append(policy_name)
+    assert len(preferences["preferred_policy"]) == len(preferences["non_preferred_policy"]), "Mismatched preference counts"
+    preference_stats = pd.DataFrame(preferences)
+    pref_out_path = os.path.join(script_dir, "policy_preferences.csv")
+    preference_stats.to_csv(pref_out_path, index=False)
+    return preference_stats
 
 def main():
     print("Loading data...")
@@ -148,6 +167,7 @@ def main():
     parsed_sessions = parse(sessions)
     policies = get_policy_names(parsed_sessions)
     save_per_trial_data(policies, parsed_sessions)
+    save_policy_preferences(parsed_sessions)
 
 if __name__ == "__main__":
     main()
