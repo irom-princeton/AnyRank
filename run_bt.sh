@@ -1,0 +1,1 @@
+python bradley_terry.py -it True -ng 100
