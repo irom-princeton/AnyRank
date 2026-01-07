@@ -8,6 +8,7 @@ import numpy as np
 import os 
 import argparse 
 import copy
+from scipy.stats import pearsonr
 
 if __name__ == "__main__":
 
@@ -19,8 +20,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p",
         "--is_pref",
-        type=bool,
-        default=True,
+        type=int,
+        default=1,
         help=("Whether the data is already in preference form. If false, the data is in " 
               "progress form, and preferences will be assigned by pairwise higher progress. " 
               "Defaults to True."),
@@ -60,16 +61,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "-it",
         "--is_test",
-        type=bool,
-        default=False,
+        type=int,
+        default=0,
         help=("Specify if the run is meant for debugging / test purposes. " 
               "Defaults to False."),
     )
     args = parser.parse_args()
 
     n_teams = args.n_teams
-    is_pref = args.is_pref 
-    is_test = args.is_test
+    is_pref = bool(args.is_pref)
+    is_test = bool(args.is_test)
     abs_tol = args.abs_tol
     data_path = args.path
     
@@ -98,24 +99,32 @@ if __name__ == "__main__":
         else:
             try:
                 data_progress = np.load(data_path)
+                print(data_progress.shape)
+                # breakpoint()
             except:
+                print(data_path)
                 raise ValueError("Cannot find data at specified path. Please verify the data location and try again")
             
             # Assume data_progress is in form PROGRESS x [IDX0, IDX1, IDX{N-1}]
             assert data_progress.shape[1] == n_teams
+
             N0 = data_progress.shape[0]
-            n_games = N0 * n_teams * (n_teams - 1) / 2
+            n_games = int(N0 * n_teams * (n_teams - 1) / 2)
+            
             # Use every available pairwise preference for now
             data = np.zeros((n_games, 3))
             counter = 0
             for k in range(N0):
                 for i in range(n_teams - 1):
-                    for j in range(i, n_teams):
+                    for j in range(i+1, n_teams):
                         data[counter, 0] = i 
-                        data[counter, 1] = j 
-                        if data_progress[counter, j] >= data_progress[counter, i]:
-                            data[counter, 2] = 1.0 
-                            # else, remains 0
+                        data[counter, 1] = j
+                        if np.isclose(data_progress[k, j], data_progress[k, i]):
+                            data[counter, 2] = np.random.binomial(1, 0.5, 1)
+                        elif data_progress[k, j] > data_progress[k, i]:
+                            data[counter, 2] = 1.0
+                        else: # Remain 0
+                            pass
                         
                         counter += 1
         
@@ -170,6 +179,7 @@ if __name__ == "__main__":
         iteration_counts += 1
     
     # Print some summary results
+    print()
     print(f"Terminated in {iteration_counts} iterations!")
     print()
     print("Power scores: ")
@@ -181,4 +191,22 @@ if __name__ == "__main__":
     print("Ranking (strongest to weakest): ")
     print(np.argsort(p_old)[::-1])
 
+    idx_ranked = np.argsort(p_old)[::-1]
+    policy_names = ["pi0_droid",
+                    "paligemma_vq_droid",
+                    "paligemma_fast_specialist_droid",
+                    "pi0_fast_droid",
+                    "paligemma_fast_droid",
+                    "paligemma_diffusion_droid",
+                    "paligemma_binning_droid",
+                    ]
+    
+    print()
+    print("Policy name ranking: ")
+    for i in range(n_teams):
+        print(f"Rank #{i+1}: ", policy_names[int(idx_ranked[i])])
 
+    policy_oracle_performance = np.mean(data_progress, axis=0)
+    
+    pearson_stat, pearson_pvalue = pearsonr(policy_oracle_performance, p_old)
+    print("Pearson R^2: ", pearson_stat)
