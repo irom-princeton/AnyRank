@@ -93,6 +93,8 @@ if __name__ == "__main__":
                 data = np.load(data_path)
                 n_games = data.shape[0]
                 assert data.shape[1] == 3
+
+                policy_oracle_performance = np.load("roboarena_policy_performance_oracle_progress.npy")
                 # Assume data is in form n_games x [IDX0, IDX1, PREF]
             except:
                 raise ValueError("Cannot find data at specified path. Please verify the data location and try again")
@@ -206,7 +208,11 @@ if __name__ == "__main__":
     for i in range(n_teams):
         print(f"Rank #{i+1}: ", policy_names[int(idx_ranked[i])])
 
-    policy_oracle_performance = np.mean(data_progress, axis=0)
+    if is_pref:
+        pass
+    else:
+        policy_oracle_performance = np.mean(data_progress, axis=0)
+        np.save("roboarena_policy_performance_oracle_progress.npy", policy_oracle_performance)
     
     pearson_stat, pearson_pvalue = pearsonr(policy_oracle_performance, p_old)
     print("Pearson R^2: ", pearson_stat)
