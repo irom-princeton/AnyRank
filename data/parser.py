@@ -174,7 +174,6 @@ def save_policy_preferences(parsed_sessions):
                     preferences["preference"].append(preference_value)
                     preference_value_recorded = True
                 
-
     assert len(preferences["A"]) == len(preferences["B"]), "Mismatched preference counts"
     preference_stats = pd.DataFrame(preferences)
     pref_out_path = os.path.join(script_dir, "policy_preferences.csv")
