@@ -43,6 +43,7 @@ if __name__ == "__main__":
     data_preference_filtered = np.zeros((N0, 3))
     binning_preferred = 0
     binning_not_preferred = 0
+    binning_neutral = 0
     for i in range(N0):
         is_complete = True 
         if np.min(data_progress[i, :]) < 0:
@@ -56,12 +57,18 @@ if __name__ == "__main__":
             idx1 = np.argwhere(bool1)
             data_preference_filtered[counter, 0] = idx0[0][0]
             data_preference_filtered[counter, 1] = idx1[0][0]
+            data_preference_filtered[counter, 2] = float(data_preference[i, 2])
 
-            if idx0 == 6:
+            if idx0 == 6 and float(data_preference[i, 2]) < 0.25:
                 binning_preferred += 1
-            elif idx1 == 6: 
+            elif idx0 == 6 and np.isclose(float(data_preference[i, 2]), 0.5):
+                binning_neutral += 1
+            elif idx1 == 6 and float(data_preference[i, 2]) > 0.75: 
                 binning_not_preferred += 1
-            # In every case, policy 0 is favored; therefore last column of data_preference_filtered is always 0
+            elif idx1 == 6 and np.isclose(float(data_preference[i, 2]), 0.5):
+                binning_neutral += 1
+            else:
+                pass
 
             # Update counter
             counter += 1
@@ -72,5 +79,7 @@ if __name__ == "__main__":
     np.save("Roboarena_progress.npy", data_progress_filtered_truncated)
     np.save("Roboarena_preference.npy", data_preference_filtered_truncated)
 
-    print(f"Binning policy preferred {100.* binning_preferred / (binning_preferred + binning_not_preferred):.3f}% of the time it is queried.")
+    print(f"Binning policy preferred {100.* binning_preferred / (binning_preferred + binning_neutral + binning_not_preferred):.3f}% of the time it is queried.")
+    print(f"Binning policy neutral {100.* binning_neutral / (binning_preferred + binning_neutral + binning_not_preferred):.3f}% of the time it is queried.")
+    print(f"Binning policy NOT preferred {100.* binning_not_preferred / (binning_preferred + binning_neutral + binning_not_preferred):.3f}% of the time it is queried.")
 

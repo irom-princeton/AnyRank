@@ -137,8 +137,12 @@ if __name__ == "__main__":
 
     ARRAY = np.zeros((n_teams, n_teams))
     for i in range(n_games):
-        if data[i, 2] > 0.5: 
+        if data[i, 2] > 0.75: 
             ARRAY[int(data[i, 1]), int(data[i, 0])] += 1
+        elif np.isclose(data[i, 2], 0.5):
+            pass
+            # ARRAY[int(data[i, 1]), int(data[i, 0])] += 0.5
+            # ARRAY[int(data[i, 0]), int(data[i, 1])] += 0.5
         else:
             ARRAY[int(data[i, 0]), int(data[i, 1])] += 1
     
@@ -194,6 +198,10 @@ if __name__ == "__main__":
     print(np.argsort(p_old)[::-1])
 
     idx_ranked = np.argsort(p_old)[::-1]
+    print()
+    print("Power scores (descending): ")
+    print(p_old[idx_ranked])
+
     policy_names = ["pi0_droid",
                     "paligemma_vq_droid",
                     "paligemma_fast_specialist_droid",
@@ -216,3 +224,11 @@ if __name__ == "__main__":
     
     pearson_stat, pearson_pvalue = pearsonr(policy_oracle_performance, p_old)
     print("Pearson R^2: ", pearson_stat)
+
+    ranking_vector = np.zeros(n_teams)
+    for i in range(n_teams):
+        ranking_vector[idx_ranked[n_teams-1-i]] = i 
+    
+    print(ranking_vector)
+    silly_pearson_stat, silly_pearson_pvalue = pearsonr(policy_oracle_performance, ranking_vector)
+    print("Silly Pearson R^2: ", silly_pearson_stat)
