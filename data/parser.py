@@ -4,6 +4,7 @@ import yaml
 from collections import defaultdict
 import os 
 import pandas as pd
+import numpy as np
 
 # ===================================================== #
 ## DIRECTORIES AND PATHS
@@ -142,19 +143,39 @@ def get_policy_names(parsed_sessions):
 
 def save_policy_preferences(parsed_sessions):
     df = parsed_sessions.to_pandas()
-    preferences = {"preferred_policy": [], "non_preferred_policy": []}
+    # Preference values are updated as: 0: A is preferred, 1: B is preferred, 0.5: TIE
+    preferences = {"A": [], "B": [], "preference": []}
     sorted_ds = parsed_sessions.sort("session_id")
+    current_session = None
+    
     for row in sorted_ds:
         session_id = row["session_id"]
         preference = row["preference"]
         policy_letter = row["policy_letter"]
         policy_name = row["policy_name"]
+
+        if preference == "A":
+            preference_value = 0
+        elif preference == "B":
+            preference_value = 1
+        elif preference == "TIE":
+            preference_value = 0.5
+        else:
+            raise ValueError(f"Unknown preference value: {preference}")
+
+        if session_id != current_session:
+            current_session = session_id
+            preference_value_recorded = False
+            
         if policy_name is not None:
-            if policy_letter == "A":
-                preferences["preferred_policy"].append(policy_name)
-            elif policy_letter == "B":
-                preferences["non_preferred_policy"].append(policy_name)
-    assert len(preferences["preferred_policy"]) == len(preferences["non_preferred_policy"]), "Mismatched preference counts"
+            if policy_letter == "A" or policy_letter == "B":
+                preferences[policy_letter].append(policy_name)
+                if not preference_value_recorded:
+                    preferences["preference"].append(preference_value)
+                    preference_value_recorded = True
+                
+
+    assert len(preferences["A"]) == len(preferences["B"]), "Mismatched preference counts"
     preference_stats = pd.DataFrame(preferences)
     pref_out_path = os.path.join(script_dir, "policy_preferences.csv")
     preference_stats.to_csv(pref_out_path, index=False)
