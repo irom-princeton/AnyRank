@@ -129,11 +129,6 @@ if __name__ == "__main__":
                             pass
                         
                         counter += 1
-        
-        # data = LOAD(...)
-        # Assume that data is array of results
-        # IDX0, IDX1, {0 or 1}
-        # 0 if IDX0 wins
 
     ARRAY = np.zeros((n_teams, n_teams))
     for i in range(n_games):

@@ -1,3 +1,4 @@
+#### TO DO: Refactor this into multitest
 from datasets import load_dataset, Dataset
 from huggingface_hub import list_repo_files, hf_hub_download
 import yaml
@@ -127,11 +128,11 @@ def save_per_trial_data(policies, parsed_sessions):
     for policy in policies:
         print(f"Policy: {policy}, Binary Data Count: {len(per_trial_binary_data[policy])}, Progress Data Count: {len(per_trial_progress_data[policy])}")
 
-    per_trial_binary_out_path = os.path.join(script_dir, "per_trial_binary_data.csv")
+    per_trial_binary_out_path = os.path.join(script_dir, "roboarena/per_trial_binary_data.csv")
     df_binary = pd.DataFrame(per_trial_binary_data)
     df_binary.to_csv(per_trial_binary_out_path, index=False)
 
-    per_trial_progress_out_path = os.path.join(script_dir, "per_trial_progress_data.csv")
+    per_trial_progress_out_path = os.path.join(script_dir, "roboarena/per_trial_progress_data.csv")
     df_progress = pd.DataFrame(per_trial_progress_data)
     df_progress.to_csv(per_trial_progress_out_path, index=False)
 
@@ -176,9 +177,24 @@ def save_policy_preferences(parsed_sessions):
                 
     assert len(preferences["A"]) == len(preferences["B"]), "Mismatched preference counts"
     preference_stats = pd.DataFrame(preferences)
-    pref_out_path = os.path.join(script_dir, "policy_preferences.csv")
+    pref_out_path = os.path.join(script_dir, "roboarena/policy_preferences.csv")
     preference_stats.to_csv(pref_out_path, index=False)
     return preference_stats
+
+def count_policy_preferences():
+    policy_pref_path = os.path.join(script_dir, "roboarena/policy_preferences.csv")
+    df = pd.read_csv(policy_pref_path)
+    policy_names = pd.unique(df[["A", "B"]].values.ravel("K"))
+    total_preference_counts = {"wins": 0, "losses": 0, "ties": 0}
+    for row in df.itertuples():
+        pref = row.preference
+        if pref == 0:
+            total_preference_counts["wins"] += 1
+        elif pref == 1:
+            total_preference_counts["losses"] += 1
+        elif pref == 0.5:
+            total_preference_counts["ties"] += 1
+    print("Total preference counts:", total_preference_counts)
 
 def main():
     print("Loading data...")
@@ -189,5 +205,7 @@ def main():
     save_per_trial_data(policies, parsed_sessions)
     save_policy_preferences(parsed_sessions)
 
+
+
 if __name__ == "__main__":
-    main()
+    count_policy_preferences()
