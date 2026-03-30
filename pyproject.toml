@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multitest"                       
+version = "0.1.0"
+description = "Multiple hypothesis testing for policy evaluation"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  # add others you actually import at runtime, e.g.:
+  # "scipy",
+  # "pandas",
+  # "tqdm",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
