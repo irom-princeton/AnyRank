@@ -2,6 +2,7 @@ import numpy as np
 from sequentialized_barnard_tests import StepTest
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from sequentialized_barnard_tests.nonparametric_nsm import MirroredContinuousNsmTest
+from sequentialized_barnard_tests.nsm_graphical import MirroredContinuousNsmTest_AlphaAdaptive
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from math import comb
 import numpy as np
@@ -9,10 +10,10 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 class GraphicalTest:
-    def __init__(self, num_policies, total_alpha=0.05):
+    def __init__(self, num_policies, null_hypotheses, total_alpha=0.05):
         self.total_alpha = total_alpha # total alpha is the family-wise error rate we want to control, so we will be working with 1 - total_alpha as the error budget to allocate
         self.num_policies=num_policies # number of policies
-        self.num_hypotheses = comb(self.num_policies,2) # number of hypotheses
+        self.num_hypotheses = len(null_hypotheses) # number of hypotheses
 
         # default setting for all nodes and edges:
         # self.G[i,j] indicates the directed edge from hypothesis Hi to Hj
@@ -25,27 +26,20 @@ class GraphicalTest:
                     self.G[i,j] = 1/(self.num_hypotheses-1)
 
         self.alpha : Sequence[float]=np.array([self.total_alpha/self.num_hypotheses for _ in range(self.num_hypotheses)]) # equal split
-        self.check_params()
-    
-    def set_proportional_weights(self, beta=1):
-        # Set edge weights proportional to alpha_j^beta, where beta is a tunable parameter. Higher initial alpha budget gets higher weight
-        for i in range(self.num_hypotheses):
-            for j in range(self.num_hypotheses):
-                if i != j:
-                    self.G[i,j] = self.alpha[j]**beta
-            # Normalize row i to sum to 1 (if not all zero)
-            row_sum = np.sum(self.G[i])
-            if row_sum > 0:
-                self.G[i] /= row_sum
+        self.null_nypotheses = null_hypotheses
+        self.hypothesis_labels = [f"H{i}\nμ₀={mu0:.2f}, μ₁={mu1:.2f}" for i, (mu0, mu1) in enumerate(null_hypotheses)]
         self.check_params()
 
-    def check_params(self, G: Optional = None, alpha:Optional = None, total_alpha:Optional = None):
-        if G:
+    def set_params(self, G: Optional = None, alpha:Optional = None, total_alpha:Optional = None):
+        if G is not None:
             self.G = np.asarray(G)
-        if alpha:
+        if alpha is not None:
             self.alpha = np.asarray(alpha)
-        if total_alpha:
+        if total_alpha is not None:
             self.total_alpha = total_alpha
+        self.check_params()
+    
+    def check_params(self):
         # Basic validation of input:
         assert abs(np.sum(self.alpha) - self.total_alpha) < 1e-5, "Split alpha budget"
         if self.alpha.shape != (self.num_hypotheses,):
@@ -61,21 +55,22 @@ class GraphicalTest:
         if np.any(self.G.sum(axis=1) > 1 + 1e-12):
             raise ValueError("Each row of G must satisfy sum_j g_{i,j} <= 1.")
 
-    def plot_graph(self, hypothesis_labels: Optional[List[str]] = None, ax=None, title: str = "Graphical Test Graph"):
+    def plot_graph(self, ax=None, title: str = "Graphical Test Graph"):
         """
         Plot self.G as a weighted directed graph.
 
+        Node labels show the hypothesis description (mu0, mu1) from
+        self.hypothesis_labels and the current alpha budget.
+
         Parameters
         ----------
-        hypothesis_labels : list of str, optional
-            Node labels. Defaults to "H0", "H1", ... with alpha budgets shown.
         ax : matplotlib Axes, optional
             Axes to draw on. Creates a new figure if None.
         title : str
             Plot title.
         """
-        if hypothesis_labels is None:
-            hypothesis_labels = [f"H{i}\n(α={self.alpha[i]:.3f})" for i in range(self.num_hypotheses)]
+        node_labels = {i: f"{self.hypothesis_labels[i]}\nα={self.alpha[i]:.3f}"
+                       for i in range(self.num_hypotheses)}
 
         DG = nx.DiGraph()
         DG.add_nodes_from(range(self.num_hypotheses))
@@ -85,29 +80,28 @@ class GraphicalTest:
                     DG.add_edge(i, j, weight=self.G[i, j])
 
         if ax is None:
-            fig, ax = plt.subplots(figsize=(max(6, self.num_hypotheses * 1.5), max(5, self.num_hypotheses * 1.2)))
+            fig, ax = plt.subplots(figsize=(max(10, self.num_hypotheses * 2.5), max(8, self.num_hypotheses * 2.0)))
 
         pos = nx.circular_layout(DG)
-        nx.draw_networkx_nodes(DG, pos, ax=ax, node_size=1800, node_color="steelblue", alpha=0.85)
-        nx.draw_networkx_labels(DG, pos, labels={i: hypothesis_labels[i] for i in range(self.num_hypotheses)},
-                                ax=ax, font_size=8, font_color="white")
+        nx.draw_networkx_nodes(DG, pos, ax=ax, node_size=5000, node_color="steelblue", alpha=0.85)
+        nx.draw_networkx_labels(DG, pos, labels=node_labels, ax=ax, font_size=11, font_color="white")
 
         edge_weights = nx.get_edge_attributes(DG, "weight")
         nx.draw_networkx_edges(DG, pos, ax=ax, edgelist=list(edge_weights.keys()),
-                               width=[v * 4 for v in edge_weights.values()],
+                               width=[v * 6 for v in edge_weights.values()],
                                edge_color=list(edge_weights.values()),
                                edge_cmap=plt.cm.Oranges, edge_vmin=0, edge_vmax=1,
-                               arrows=True, arrowsize=20,
+                               arrows=True, arrowsize=30,
                                connectionstyle="arc3,rad=0.15")
         edge_labels = {(i, j): f"{w:.2f}" for (i, j), w in edge_weights.items()}
-        nx.draw_networkx_edge_labels(DG, pos, edge_labels=edge_labels, ax=ax, font_size=7, label_pos=0.3)
+        nx.draw_networkx_edge_labels(DG, pos, edge_labels=edge_labels, ax=ax, font_size=11, label_pos=0.3)
 
-        ax.set_title(title)
+        ax.set_title(title, fontsize=14)
         ax.axis("off")
         plt.tight_layout()
         return ax
 
-    def graphical_test(self, p_values:Sequence[float]) -> Tuple[Set[int], np.ndarray, np.ndarray]:
+    def graphical_test(self, p_values:Sequence[float], verbose=False) -> Tuple[Set[int], np.ndarray, np.ndarray]:
         """
         Parameters
         ----------
@@ -137,6 +131,7 @@ class GraphicalTest:
         """
         p = np.asarray(p_values, dtype=float)
         rejected: Set[int] = set()
+        graphs_over_time = []
 
         assert len(p) == self.num_hypotheses, "Mismatch in the number of hypotheses"
         if np.any(p < 0) or np.any(p > 1):
@@ -146,7 +141,13 @@ class GraphicalTest:
             candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p[i] <= self.alpha[i]]
             if not candidates:
                 break
-
+            
+            # Plot graphs:
+            graphs_over_time.append(self.plot_graph())
+            
+            if verbose:
+                print(self.G)
+            
             # Choose any i such that p_i <= delta_i"
             i = candidates[0]
             # Reject i
@@ -166,17 +167,18 @@ class GraphicalTest:
                         new_G[k, j] = 0.0
                         continue
 
-                    denom = 1.0 - self.G[j, i] * self.G[i, j]
-                    if np.isclose(denom, 0.0):
-                        raise ZeroDivisionError(
-                            f"Denominator became zero while updating edge ({k}, {j}). "
-                            "Check whether the graph satisfies the needed conditions."
-                        )
-
-                    new_G[k, j] = (self.G[k, j] + self.G[k, i] * self.G[i, j]) / denom
+                    denom = 1.0 - self.G[k, i] * self.G[i, k]
+                    
+                    if denom > 0.0: 
+                        new_G[k, j] = (self.G[k, j] + self.G[k, i] * self.G[i, j]) / denom
+                    else:
+                        new_G[k, j] = 0.0
             self.alpha = new_alpha
             self.G = new_G
-        return rejected
+        return rejected, graphs_over_time
+    
+
+    
 
 def initialize_bonferroni_test(Nmax, alpha, num_hypotheses):
     #bonferroni_step_test = StepTest(Hypothesis.P0LessThanP1, Nmax, alpha/num_hypotheses)
@@ -232,7 +234,7 @@ def parse_nsm_test_result(test_result):
         time_of_decision = None
     return decision_str, time_of_decision
 
-def graphical_multitest(ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, either_decision=True, alpha_per_hypothesis=None):
+def graphical_multitest(ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, either_decision=True, alpha_per_hypothesis=None, weighted_G=None):
     '''
     Given an ordered list of hypotheses, perform the graphical test
     Return the list of rejected hypotheses along with their decision times
@@ -241,15 +243,17 @@ def graphical_multitest(ordered_hypotheses_policy_indices, policy_data, Nmax, al
     rejected_hypotheses = []
     decision_times = {}
     num_hypotheses = len(ordered_hypotheses_policy_indices)
-    graphical_test = GraphicalTest(num_policies=policy_data.shape[1], total_alpha=alpha)
-    graphical_test.set_proportional_weights(beta=1) # Set edge weights inversely proportional to alpha budgets, so that rejecting a hypothesis with a smaller alpha budget will free up more error budget for the remaining hypotheses. This is just a heuristic and can be tuned.
+    graphical_test = GraphicalTest(num_policies=policy_data.shape[1], null_hypotheses = ordered_hypotheses_policy_indices, total_alpha=alpha)
+    if alpha_per_hypothesis is not None:
+        graphical_test.set_params(alpha=alpha_per_hypothesis)
+    if weighted_G is not None:
+        graphical_test.set_params(G = weighted_G)
     init_graph = graphical_test.G.copy()
-
     # Print weights to file:
 
     # Initialize p-values for all hypotheses to 1 (not rejected)
     p_values = np.ones(num_hypotheses)
-
+    
     for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
         p0_index, p1_index = hypothesis_policy_indices
         data0 = policy_data[:, p0_index]
@@ -279,14 +283,14 @@ def graphical_multitest(ordered_hypotheses_policy_indices, policy_data, Nmax, al
 
     # Graphical test will be run after all hypotheses have their p-values computed, and it will determine which hypotheses are rejected and update the graph accordingly.
     # Run the graphical test with the current p-values
-    rejected_hypotheses = graphical_test.graphical_test(p_values)
-    return rejected_hypotheses, decision_times, p_values, init_graph
+    rejected_hypotheses, graphs_over_time = graphical_test.graphical_test(p_values)
+    return rejected_hypotheses, decision_times, p_values, init_graph, graphs_over_time
+
+
+
 if __name__ == "__main__":
     # Test graphical test procedure on toy data:
     graph = GraphicalTest(num_policies=3, total_alpha=0.95)
-    # graph.G = np.array([[0, 0.5, 0.5],
-    #                     [0.0, 0, 1],
-    #                     [0.0, 0.0, 0]])
     pvalues = [0.02, 0.055, 0.012]
     rejected = graph.graphical_test(pvalues)
     print("Rejected hypotheses indices: ", rejected)

@@ -10,7 +10,7 @@ import sys
 from sequentialized_barnard_tests import StepTest
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from multitest.step_ttd_toy_data import get_step_ttd_toy_data, make_toy_data
-from multitest.graphical import graphical_multitest, bonferroni_multitest
+from multitest.sequential_graphical import SequentialGraphicalTest
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
 import tempfile, tqdm
@@ -22,10 +22,10 @@ Nmax = 500
 n_runs = 20
 alpha = 0.1
 FIGSIZE = (12, 10)
-beta = -1.0  # tuning parameter for alpha allocation in graphical test
+beta = 6.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'graphical_results_exp_weights_wm'
+results_dir = 'sequential_results_exp_weights_wm'
 os.makedirs(results_dir, exist_ok=True)
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
@@ -288,7 +288,9 @@ if run_new_experiment:
 
         # Running graphical multitest
         print("Running graphical multitest...")
-        rejected_hypotheses, decision_times, p_values, G, graphs_over_time = graphical_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha, alpha_per_hypothesis=alpha_per_hypothesis, weighted_G=weighted_G)
+        graphical_test = SequentialGraphicalTest(num_policies=policy_data.shape[1], null_hypotheses = null_hypotheses_policy_indices, total_alpha=alpha)
+        # rejected_hypotheses, decision_times, p_values, G, graphs_over_time = sequential_graphical_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha, alpha_per_hypothesis=alpha_per_hypothesis, weighted_G=weighted_G)
+        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time = graphical_test.sequential_graphical_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=alpha_per_hypothesis, weighted_G=weighted_G, verbose=True)
         animate(graphs_over_time)
 
         for key, value in decision_times.items():
@@ -297,14 +299,14 @@ if run_new_experiment:
         print("Decision times: ", decision_times, "\n")
 
         print("Running Bonferroni corrected individual tests for comparison...")
-        rejected_hypotheses_bonferroni, decision_times_bonferroni = bonferroni_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha)
+        rejected_hypotheses_bonferroni, decision_times_bonferroni = graphical_test.bonferroni_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha)
         for key, value in decision_times_bonferroni.items():
             average_times_to_decision_bonferroni[key] = average_times_to_decision_bonferroni.get(key, 0) + value
 
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_bonferroni)
         print("Decision times: ", decision_times_bonferroni, "\n")
 
-    policy_ranking, wins = get_ranking_from_rejections(rejected_hypotheses, null_hypotheses, policy_index)
+    policy_ranking, wins = get_ranking_from_rejections(rejected_hypotheses_indices, null_hypotheses, policy_index)
     print("Policy ranking based on graphical multitest rejections: ", policy_ranking)
     rejected_hypotheses_bonferroni_indices = []
     for (p0_index, p1_index) in rejected_hypotheses_bonferroni:
