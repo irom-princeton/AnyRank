@@ -62,6 +62,13 @@ def fixed_sequence_multitest_step(ordered_hypotheses_policy_indices, policy_data
             break  # Stop testing further hypotheses
     return rejected_hypotheses, decision_times
 
+###
+# FST: Keep stepping through nsm tests for all hypotheses but only look at the p-value
+# of the hypothesis being considered. Inefficiency is when teh p-value is much lower than alpha
+# for a late hypothesis. Need to implement this.
+# FST: increasing variane a lot with few expected gains (hypothesis)
+###
+
 def bonferroni_multitest(ordered_hypotheses_policy_indices, policy_data, Nmax, alpha):
     '''
     Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
