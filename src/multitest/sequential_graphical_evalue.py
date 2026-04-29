@@ -1,6 +1,6 @@
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from sequentialized_barnard_tests.nonparametric_nsm import MirroredContinuousNsmTest
-from sequentialized_barnard_tests.nsm_graphical import MirroredContinuousNsmTest_AlphaAdaptive
+from sequentialized_barnard_tests.nsm_graphical_evalue import MirroredContinuousNsmTest_AlphaAdaptive
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from math import comb
 import numpy as np
@@ -330,7 +330,7 @@ class SequentialGraphicalTest:
 
                     nsm_test = tests[i]
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
-                    p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
+                    p_values[i] = nsm_test._e_value # Assuming the test result contains the p-value in info dictionary
                     # nsm_decision_str, nsm_time_of_decision = self.parse_nsm_test_result(nsm_result)
                     # if nsm_decision_str == "P0LessThanP1": # reject null
                     #     rejected_hypotheses.append(hypothesis_policy_indices)
