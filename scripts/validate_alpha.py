@@ -11,8 +11,6 @@ from sequentialized_barnard_tests import StepTest
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from multitest.step_ttd_toy_data import get_step_ttd_toy_data, make_toy_data
 from multitest.sequential_graphical import SequentialGraphicalTest
-from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
-
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
 import tempfile, tqdm
@@ -20,14 +18,14 @@ import tempfile, tqdm
 #############################################
 # Setting up parameters and data
 #############################################
-Nmax = 2000
-n_runs = 5
+Nmax = 500
+n_runs = 20
 alpha = 0.1
 FIGSIZE = (12, 10)
-beta = 1000.0  # tuning parameter for alpha allocation in graphical test
+beta = 1.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'test_high_beta'
+results_dir = 'sequential_results_exp_weights_wm'
 os.makedirs(results_dir, exist_ok=True)
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
@@ -49,7 +47,7 @@ def get_real_and_sim_means(task=1, policy="pi0"):
             real_sim = [(0.05, 0.13), (0.3, 0.15), (0.45, 0.22), (0.8, 0.7)]
         elif policy == "all":
             real_sim = [(0.05, 0.13), (0.15, 0.19), (0.3, 0.15), (0.45, 0.22), (0.6, 0.25), (0.8, 0.7), (0.8, 0.83)]
-        
+
     elif task==2:
         if policy == "pi0":
             real_sim = [(0.05, 0), (0.45, 0)]
@@ -83,10 +81,10 @@ def synthetic_real_data(real_means, Nmax=200):
     """
     n_policies = len(real_means)
     policy_data = np.zeros((Nmax, n_policies))
-    
+
     for i, real_mean in enumerate(real_means):
         policy_data[:, i] = np.random.binomial(1, real_mean, size=Nmax)
-    
+
     return policy_data
 
 def get_ranking_from_rejections(rejected_hypotheses, null_hypotheses, policy_index):
@@ -104,7 +102,7 @@ def get_ranking_from_rejections(rejected_hypotheses, null_hypotheses, policy_ind
     """
     # Count wins for each policy based on rejected hypotheses
     n_policies = len(policy_index)
-    rejected_hypotheses_pairs = [null_hypotheses[k] for k in rejected_hypotheses]   
+    rejected_hypotheses_pairs = [null_hypotheses[k] for k in rejected_hypotheses]
     print("Rejected hypothesis (mu0, mu1): ", rejected_hypotheses_pairs)
     wins = {i: 0 for i in range(n_policies)}
     for p0_sim, p1_sim in rejected_hypotheses_pairs:
@@ -179,7 +177,7 @@ def allocate_weights(diffs: list[float], beta=1) -> np.ndarray:
 
     weights = np.exp(diffs * beta)
     weights = weights / weights.sum()  # normalize to sum to 1
-    
+
     return weights
 
 def animate(graph_axes: list):
@@ -275,7 +273,7 @@ for hyp in null_hypotheses:
     mu0 = hyp[0]
     mu1 = hyp[1]
     diffs.append(abs(mu1 - mu0))
-    
+
 # Allocate alpha according to simulation differences:
 alpha_per_hypothesis = allocate_alpha(diffs, alpha,beta=beta) # example alpha allocation for graphical test
 alpha_per_hypothesis_weighted_bonferroni = allocate_alpha(diffs, alpha,beta=-1*beta) # example alpha allocation for graphical test
@@ -305,12 +303,10 @@ with open(f'{results_dir}/alpha_allocation_N{Nmax}_n{n_runs}_alpha{alpha}_beta{b
 #####################################################
 if run_new_experiment:
     average_times_to_decision = {}
-    average_times_to_decision_evalues = {}
     average_times_to_decision_bonferroni = {}
     average_times_to_decision_weighted_bonferroni = {}
     average_times_to_decision_fixed = {}
     samples_per_policy = {k: {} for k in range(n_runs)}
-    samples_per_policy_evalues = {k: {} for k in range(n_runs)}
     samples_per_policy_fixed = {k: {} for k in range(n_runs)}
     samples_per_policy_bonferroni = {k: {} for k in range(n_runs)}
     samples_per_policy_weighted_bonferroni = {k: {} for k in range(n_runs)}
@@ -330,7 +326,7 @@ if run_new_experiment:
         graphical_test = SequentialGraphicalTest(num_policies=policy_data.shape[1], null_hypotheses = null_hypotheses_policy_indices, total_alpha=alpha)
         # rejected_hypotheses, decision_times, p_values, G, graphs_over_time = sequential_graphical_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha, alpha_per_hypothesis=alpha_per_hypothesis, weighted_G=weighted_G)
         rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time = graphical_test.sequential_graphical_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=alpha_per_hypothesis, weighted_G=weighted_G, verbose=True)
-        
+
         for hyp, ttd in decision_times.items():
             pi1, pi2 = hyp
             samples_per_policy[run][pi1] = max(ttd, samples_per_policy[run].get(pi1, 0))
@@ -341,25 +337,6 @@ if run_new_experiment:
 
         for key, value in decision_times.items():
             average_times_to_decision[key] = average_times_to_decision.get(key, 0) + value
-        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
-        print("Decision times: ", decision_times, "\n")
-        
-        ####################### E-Sequential Graphical Test ######################
-        print("Running graphical multitest...")
-        egraphical_test = ESequentialGraphicalTest(num_policies=policy_data.shape[1], null_hypotheses = null_hypotheses_policy_indices, total_alpha=alpha)
-        # rejected_hypotheses, decision_times, p_values, G, graphs_over_time = sequential_graphical_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha, alpha_per_hypothesis=alpha_per_hypothesis, weighted_G=weighted_G)
-        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time = egraphical_test.sequential_graphical_multitest(null_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=alpha_per_hypothesis, weighted_G=weighted_G, verbose=True)
-        
-        for hyp, ttd in decision_times.items():
-            pi1, pi2 = hyp
-            samples_per_policy_evalues[run][pi1] = max(ttd, samples_per_policy_evalues[run].get(pi1, 0))
-            samples_per_policy_evalues[run][pi2] = max(ttd, samples_per_policy_evalues[run].get(pi2, 0))
-
-
-        animate(graphs_over_time)
-
-        for key, value in decision_times.items():
-            average_times_to_decision_evalues[key] = average_times_to_decision_evalues.get(key, 0) + value
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
         print("Decision times: ", decision_times, "\n")
 
@@ -432,13 +409,11 @@ if run_new_experiment:
         f.write("Policy ranking based on Bonferroni corrected test rejections: " + str(policy_ranking_bonferroni) + "\n")
         print("Policy ranking based on: ")
         for key, value in wins_bonferroni.items():
-            f.write(f"{key}: {value}\n")    
+            f.write(f"{key}: {value}\n")
 
     # Averaging over runs
     for key in average_times_to_decision.keys():
         average_times_to_decision[key] /= n_runs
-    for key in average_times_to_decision_evalues.keys():
-        average_times_to_decision_evalues[key] /= n_runs
     for key in average_times_to_decision_bonferroni.keys():
         average_times_to_decision_bonferroni[key] /= n_runs
     for key in average_times_to_decision_fixed.keys():
@@ -449,11 +424,10 @@ if run_new_experiment:
     with open(f'{results_dir}/sample_complexity_N{Nmax}_n{n_runs}_alpha{alpha}_beta{beta}.txt', 'w') as f:
         for i in range(n_policies):
             policy_samples_average = np.mean([samples_per_policy[run].get(i, 0) for run in range(n_runs)])
-            policy_samples_evalues_average=np.mean([samples_per_policy_evalues[run].get(i, 0) for run in range(n_runs)])
             policy_samples_average_bonferroni = np.mean([samples_per_policy_bonferroni[run].get(i, 0) for run in range(n_runs)])
             policy_samples_average_fixed = np.mean([samples_per_policy_fixed[run].get(i, 0) for run in range(n_runs)])
             policy_samples_average_weighted_bonferroni = np.mean([samples_per_policy_weighted_bonferroni[run].get(i, 0) for run in range(n_runs)])
-            f.write(f"Policy {i}: Graphical={policy_samples_average:.2f}, EGraphical={policy_samples_evalues_average:.2f}, Bonferroni={policy_samples_average_bonferroni:.2f}, Fixed={policy_samples_average_fixed:.2f}, Weighted_Bonferroni={policy_samples_average_weighted_bonferroni:.2f}\n")
+            f.write(f"Policy {i}: Graphical={policy_samples_average:.2f}, Bonferroni={policy_samples_average_bonferroni:.2f}, Fixed={policy_samples_average_fixed:.2f}, Weighted_Bonferroni={policy_samples_average_weighted_bonferroni:.2f}\n")
 
     #############################################
     # Summarizing results
@@ -465,7 +439,7 @@ if run_new_experiment:
         p1_index_ex = n_policies - 1 - p1_index  # to align with earlier indexing
         exchange_pvalue_matrix[p0_index, p1_index_ex] = p_values[i]
         exchange_alpha_matrix[p0_index, p1_index_ex] = alpha_per_hypothesis[i]
-    
+
     plot_heatmap(exchange_pvalue_matrix,
                  title='Graphical Multitest: p-values for each hypothesis',
                  save_path=f'{results_dir}/graphical_multitest_pvalues_N{Nmax}_n{n_runs}_alpha{alpha}_beta{beta}.png',
@@ -481,7 +455,6 @@ if run_new_experiment:
 
 # Print an exchange matrix showing time to decision savings compared to Bonferroni correction:
     exchange_matrix_fs = np.zeros((n_policies, n_policies))
-    exchange_matrix_evalues = np.zeros((n_policies, n_policies))
     exchange_matrix_saved = np.zeros((n_policies, n_policies))
     exchange_matrix_fixed = np.zeros((n_policies, n_policies))
     exchange_matrix_bonferroni = np.zeros((n_policies, n_policies))
@@ -493,9 +466,6 @@ if run_new_experiment:
         print(f"Policy pair ({p0_index}, {p1_index}): FST TTD = {ttd}, Bonferroni TTD = {average_times_to_decision_bonferroni.get((p0_index, p1_index), Nmax)}")
         print("------------------------")
 
-    for (p0_index, p1_index), ttd in average_times_to_decision_evalues.items():
-        p1_index_ex = n_policies - 1 - p1_index  # to align with earlier indexing
-        exchange_matrix_evalues[p0_index, p1_index_ex] = ttd
 
     for (p0_index, p1_index), ttd in average_times_to_decision_bonferroni.items():
         p1_index_ex = n_policies - 1 - p1_index  # to align with earlier indexing
@@ -564,7 +534,4 @@ plot_heatmap(exchange_matrix_weighted_bonferroni,
 plot_heatmap(exchange_matrix_fixed,
              title='Fixed: Time to Decision',
              save_path=f'{results_dir}/fixed_multitest_ttd_N{Nmax}_n{n_runs}_alpha{alpha}_beta{beta}.png')
-plot_heatmap(exchange_matrix_evalues,
-             title='Fixed: Time to Decision',
-             save_path=f'{results_dir}/grahical_evalues_multitest_ttd_N{Nmax}_n{n_runs}_alpha{alpha}_beta{beta}.png')
 #############################################

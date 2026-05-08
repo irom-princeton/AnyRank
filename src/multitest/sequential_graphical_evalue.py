@@ -1,6 +1,6 @@
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from sequentialized_barnard_tests.nonparametric_nsm import MirroredContinuousNsmTest
-from sequentialized_barnard_tests.nsm_graphical import MirroredContinuousNsmTest_AlphaAdaptive
+from sequentialized_barnard_tests.nsm_graphical_evalue import MirroredContinuousNsmTest_AlphaAdaptive
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from math import comb
 import numpy as np
@@ -137,7 +137,6 @@ class SequentialGraphicalTest:
         """
         p = np.asarray(p_values, dtype=float)
         rejected: Set[int] = set()
-        alpha_at_rejected = []
         graphs_over_time = []
 
         assert len(p) == self.num_hypotheses, "Mismatch in the number of hypotheses"
@@ -159,7 +158,6 @@ class SequentialGraphicalTest:
             i = candidates[0]
             # Reject i
             rejected.add(i)
-            alpha_at_rejected.append(copy.deepcopy(self.alpha[i]))
             active = [j for j in range(self.num_hypotheses) if j not in rejected]
 
             # Update delta_j
@@ -192,7 +190,7 @@ class SequentialGraphicalTest:
                         breakpoint()
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
-        return rejected, graphs_over_time, alpha_at_rejected
+        return rejected, graphs_over_time
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
         nonparametric_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
@@ -301,7 +299,6 @@ class SequentialGraphicalTest:
             self.set_params(G = weighted_G)
         init_graph = self.G.copy()
         rejected = [] # indices of rejected hypotheses
-        alpha_at_rejected = []
         graphs_over_time = []
 
         # Initialize p-values for all hypotheses to 1 (not rejected)
@@ -320,37 +317,20 @@ class SequentialGraphicalTest:
             nsm_test = self.initialize_graphical_nsm_test(Nmax, alpha_i)
             tests[i] = nsm_test
         
-        # Have to fix this to only gather data for "active" hypotheses (here, hypotheses with value > alpha / N, e.g., over Bonferroni)
-        
-        hypotheses_completed = np.zeros(num_hypotheses)
-        KK = np.zeros(num_hypotheses)
-
-        # Active sampling scheme
-        while np.min(hypotheses_completed) <= 0.5:
-            # Get all rejected indices
+        for k in range(len(policy_data)): # sequentially go through data points
             all_rejected = [i for i in range(num_hypotheses) if i in rejected]
+            if len(all_rejected) == num_hypotheses:
+                return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time
             
-            # Mark all rejected hypotheses as completed
-            for k in range(len(all_rejected)):
-                if hypotheses_completed[all_rejected[k]] <= 0.5:
-                    hypotheses_completed[all_rejected[k]] = 1.0 
-            
-            for k in range(num_hypotheses):
-                if KK[k] >= Nmax:
-                    hypotheses_completed[k] = 1.0
-            
-            # Iterate through test definitions
             for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-                if hypotheses_completed[i] <= 0.5 and self.alpha[i] >= (self.total_alpha / num_hypotheses): # Collect data only if: (a) active and (b) actively preferred
+                if i not in rejected: # Keep collecting data
                     p0_index, p1_index = hypothesis_policy_indices
                     data0 = policy_data[:, p0_index]
                     data1 = policy_data[:, p1_index]
-                    k = int(KK[i])
 
                     nsm_test = tests[i]
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
-                    p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
-                    KK[i] += 1
+                    p_values[i] = nsm_test._e_value # Assuming the test result contains the p-value in info dictionary
                     # nsm_decision_str, nsm_time_of_decision = self.parse_nsm_test_result(nsm_result)
                     # if nsm_decision_str == "P0LessThanP1": # reject null
                     #     rejected_hypotheses.append(hypothesis_policy_indices)
@@ -362,71 +342,22 @@ class SequentialGraphicalTest:
 
             if len(candidates) > 0:
                 # Plot graphs:
-                rejected_at_k, graph_over_time, new_alpha_at_rejected = self.sequential_graphical_test(p_values, verbose=False)
+                rejected_at_k, graph_over_time = self.sequential_graphical_test(p_values, verbose=False)
                 graphs_over_time.extend(graph_over_time)
-                for j in range(len(new_alpha_at_rejected)):
-                    alpha_at_rejected.append(new_alpha_at_rejected[j])
-                
                 for i in rejected_at_k:
                     if i not in rejected:
                         rejected.append(i)
                         hypothesis_policy_indices = ordered_hypotheses_policy_indices[i]
                         if hypothesis_policy_indices not in rejected_hypotheses:
                             rejected_hypotheses.append(hypothesis_policy_indices)
-                            decision_times[hypothesis_policy_indices] = KK[i] # or nsm_time_of_decision, but we will just use k for now since it's more intuitive to say we made the decision at time k when we see the data point at time k.
+                            decision_times[hypothesis_policy_indices] = k # or nsm_time_of_decision, but we will just use k for now since it's more intuitive to say we made the decision at time k when we see the data point at time k.
 
                 # Reset alpha for remaining hypotheses to initial alpha (or alpha_per_hypothesis if provided) after each update:
                 for i in range(num_hypotheses):
                     if i not in rejected:
                         nsm_test = tests[i]
                         nsm_test.set_alpha(self.alpha[i])
-        
-        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected                
-                        
-        
-        # for k in range(len(policy_data)): # sequentially go through data points
-        #     all_rejected = [i for i in range(num_hypotheses) if i in rejected]
-        #     if len(all_rejected) == num_hypotheses:
-        #         return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected
-            
-        #     for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-        #         if i not in rejected: # Keep collecting data
-        #             p0_index, p1_index = hypothesis_policy_indices
-        #             data0 = policy_data[:, p0_index]
-        #             data1 = policy_data[:, p1_index]
-        #             nsm_test = tests[i]
-        #             nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
-        #             p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
-        #             # nsm_decision_str, nsm_time_of_decision = self.parse_nsm_test_result(nsm_result)
-        #             # if nsm_decision_str == "P0LessThanP1": # reject null
-        #             #     rejected_hypotheses.append(hypothesis_policy_indices)
-        #             #     decision_times[hypothesis_policy_indices] = nsm_time_of_decision if nsm_time_of_decision is not None else Nmax
-            
-        #     candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p_values[i] <= self.alpha[i]]
-        #     if verbose:
-        #         print(f"At time {k}, p-values: {p_values}, alpha: {self.alpha}, candidates for rejection: {candidates}")
 
-        #     if len(candidates) > 0:
-        #         # Plot graphs:
-        #         rejected_at_k, graph_over_time, new_alpha_at_rejected = self.sequential_graphical_test(p_values, verbose=False)
-        #         graphs_over_time.extend(graph_over_time)
-        #         for j in range(len(new_alpha_at_rejected)):
-        #             alpha_at_rejected.append(new_alpha_at_rejected[j])
-                
-        #         for i in rejected_at_k:
-        #             if i not in rejected:
-        #                 rejected.append(i)
-        #                 hypothesis_policy_indices = ordered_hypotheses_policy_indices[i]
-        #                 if hypothesis_policy_indices not in rejected_hypotheses:
-        #                     rejected_hypotheses.append(hypothesis_policy_indices)
-        #                     decision_times[hypothesis_policy_indices] = k # or nsm_time_of_decision, but we will just use k for now since it's more intuitive to say we made the decision at time k when we see the data point at time k.
-
-        #         # Reset alpha for remaining hypotheses to initial alpha (or alpha_per_hypothesis if provided) after each update:
-        #         for i in range(num_hypotheses):
-        #             if i not in rejected:
-        #                 nsm_test = tests[i]
-        #                 nsm_test.set_alpha(self.alpha[i])
-
-        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected                
-                        
+        # If some are not rejected:          
+        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time
         
