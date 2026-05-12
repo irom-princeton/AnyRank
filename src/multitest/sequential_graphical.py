@@ -184,14 +184,14 @@ class SequentialGraphicalTest:
                         continue
 
                     denom = 1.0 - self.G[k, i] * self.G[i, k]
-                    if np.isclose(denom, 0.0):
-                        breakpoint()
-                        raise ZeroDivisionError(
-                            f"Denominator became zero while updating edge ({k}, {j}). "
-                            "Check whether the graph satisfies the needed conditions."
-                        )
+                    # if np.isclose(denom, 0.0):
+                    #     breakpoint()
+                    #     raise ZeroDivisionError(
+                    #         f"Denominator became zero while updating edge ({k}, {j}). "
+                    #         "Check whether the graph satisfies the needed conditions."
+                    #     )
 
-                    if denom > 0.0: 
+                    if denom > 1e-8: 
                         new_G[k, j] = (self.G[k, j] + self.G[k, i] * self.G[i, j]) / denom
                     else:
                         new_G[k, j] = 0.0
@@ -379,6 +379,7 @@ class SequentialGraphicalTest:
                 if hypotheses_completed[all_rejected[k]] <= 0.5:
                     hypotheses_completed[all_rejected[k]] = 1.0 
             
+            # Hypothesis also completed if no more samples may be drawn
             for k in range(num_hypotheses):
                 if KK[k] >= Nmax:
                     hypotheses_completed[k] = 1.0
@@ -387,7 +388,7 @@ class SequentialGraphicalTest:
             # Active data collection:
             for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
                 # print(f"Processing hypothesis {i}, policies {hypothesis_policy_indices}, at iteration {iters}: ", self.alpha[i] >= (self.total_alpha / num_hypotheses))
-                if hypotheses_completed[i] <= 0.5 and self.alpha[i] >= (self.total_alpha / num_hypotheses): # Collect data only if: (a) active and (b) actively preferred
+                if hypotheses_completed[i] <= 0.5 and self.alpha[i] >= (np.max(self.alpha)-1e-8): # Collect data only if: (a) active and (b) actively preferred
                     p0_index, p1_index = hypothesis_policy_indices
                     data0 = policy_data[:, p0_index]
                     data1 = policy_data[:, p1_index]

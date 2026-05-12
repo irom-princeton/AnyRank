@@ -11,8 +11,8 @@ import tqdm
 import tempfile
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
-from multitest.sequential_graphical import SequentialGraphicalTest
-from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
+from src.multitest.sequential_graphical import SequentialGraphicalTest
+from src.multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
 import pandas as pd
 
 #############################################
@@ -23,7 +23,7 @@ n_runs = 1
 n_prior = 20
 alpha = 0.1
 FIGSIZE = (12, 10)
-beta = 10.0  # tuning parameter for alpha allocation in graphical test
+beta = 0.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
 results_dir = 'outputs/roboarena_graphical_test_results'
@@ -534,6 +534,20 @@ def main():
     exchange_matrix_fixed = _fill_exchange_matrix(avg_ttd_fixed, n_policies)
     exchange_matrix_weighted_bonferroni = _fill_exchange_matrix(avg_ttd_weighted_bonferroni, n_policies)
 
+    true_sample_complexity_fs = 0.
+    true_sample_complexity_evalues = 0.
+    true_sample_complexity_bonferroni = 0.
+    true_sample_complexity_weighted_bonferroni = 0.
+    true_sample_complexity_fixed = 0. 
+
+    for i in range(n_policies):
+        true_sample_complexity_fs += np.maximum(np.max(exchange_matrix_fs[:, i]), np.max(exchange_matrix_fs[n_policies-i-1, :]))
+        true_sample_complexity_evalues += np.maximum(np.max(exchange_matrix_evalues[:, i]), np.max(exchange_matrix_evalues[n_policies-i-1, :]))
+        true_sample_complexity_bonferroni += np.maximum(np.max(exchange_matrix_bonferroni[:, i]), np.max(exchange_matrix_bonferroni[n_policies-i-1, :]))
+        true_sample_complexity_weighted_bonferroni += np.maximum(np.max(exchange_matrix_weighted_bonferroni[:, i]), np.max(exchange_matrix_weighted_bonferroni[n_policies-i-1, :]))
+        true_sample_complexity_fixed += np.maximum(np.max(exchange_matrix_fixed[:, i]), np.max(exchange_matrix_fixed[n_policies-i-1, :]))
+    
+
     for (p0_index, p1_index), ttd in avg_ttd.items():
         print(f"Policy pair ({p0_index}, {p1_index}): FST TTD = {ttd}, Bonferroni TTD = {avg_ttd_bonferroni.get((p0_index, p1_index), Nmax)}")
         print("------------------------")
@@ -575,6 +589,21 @@ def main():
     print("Exchange matrix for graphical multitest (trials saved): ")
     print(exchange_matrix_saved)
     print(f"Total trials saved (graphical multitest): {total_trials_saved_fs}")
+    print()
+    print("Actual Sample complexities: ")
+    print(f"Complexity of Our Approach:                   {true_sample_complexity_fs}")
+    print(f"Complexity of E-values Approach:              {true_sample_complexity_evalues}")
+    print(f"Complexity of Bonferroni Approach:            {true_sample_complexity_bonferroni}")
+    print(f"Complexity of Weighted Bonferroni Approach:   {true_sample_complexity_weighted_bonferroni}")
+    print(f"Complexity of Fixed Sequence Approach:        {true_sample_complexity_fixed}")
+    print()
+    print("Decision times: ")
+    with np.printoptions(precision=3, suppress=True):
+        print(decision_times)
+    print()
+    print("alpha at rejected:")
+    with np.printoptions(precision=3, suppress=True):
+        print(alpha_at_rejected)
     print("------------------------")
 
     #############################################
