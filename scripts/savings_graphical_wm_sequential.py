@@ -20,7 +20,8 @@ Nmax = 500
 n_runs = 10
 alpha = 0.1
 FIGSIZE = (12, 10)
-beta = -1.0  # tuning parameter for alpha allocation in graphical test
+# beta = -1.0: higher diffs: larger weight, beta = 1: in proportion to diffs.
+beta = 1.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
 results_dir = 'incorrect_order'

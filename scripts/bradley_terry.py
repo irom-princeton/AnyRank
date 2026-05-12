@@ -22,7 +22,7 @@ if __name__ == "__main__":
         "-p",
         "--is_pref",
         type=int,
-        default=1,
+        default=0,
         help=("Whether the data is already in preference form. If false, the data is in " 
               "progress form, and preferences will be assigned by pairwise higher progress. " 
               "Defaults to True."),
@@ -39,7 +39,7 @@ if __name__ == "__main__":
         "-nt",
         "--n_teams",
         type=int,
-        default=3,
+        default=4,
         help=("Number of teams in the ranking / score computation. " 
               "Defaults to 3."),
     )
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         "--n_games",
         type=int,
         default=15,
-        help=("Number of total games played by all teams / policies. " 
+        help=("Number of total games played by each teams / policies. " 
               "Defaults to 15."),
     )
 
@@ -63,13 +63,13 @@ if __name__ == "__main__":
     current_file_path = Path(__file__).resolve()
     parent_dir = current_file_path.parent.parent
     data_dir = parent_dir / "data"
-    data_file_path = data_dir / "roboarena/roboarena_policy_performance_oracle_progress.npy"
+    data_file_path = data_dir / "roboarena/Roboarena_progress.npy"
     pref_file_path = data_dir / "roboarena/Roboarena_preference.npy"
     parser.add_argument(
         "-dp",
         "--path",
         type=str,
-        default=pref_file_path,
+        default=data_file_path,
         help=("Path to the data to load. " 
               "Defaults to None."),
     )
@@ -89,6 +89,12 @@ if __name__ == "__main__":
     is_test = bool(args.is_test)
     abs_tol = args.abs_tol
     data_path = args.path
+
+    policy_names = ["pi0_droid",
+                    "pi0_fast_droid",
+                    "paligemma_diffusion_droid",
+                    "paligemma_binning_droid",
+                    ]
     
     if is_test:
         n_games = args.n_games
@@ -123,19 +129,20 @@ if __name__ == "__main__":
                 raise ValueError("Cannot find data at specified path. Please verify the data location and try again")
         else:
             try:
-                data_progress = np.load(data_path)
+                data_progress = np.load(data_file_path)
                 print(data_progress.shape)
                 # breakpoint()
             except:
-                print(data_path)
+                print(data_file_path)
                 raise ValueError("Cannot find data at specified path. Please verify the data location and try again")
             
-            # Assume data_progress is in form PROGRESS x [IDX0, IDX1, IDX{N-1}]
-            assert data_progress.shape[1] == n_teams
-
+            # Assume data_progress is in form PROGRESS x [IDX0, IDX1, ..., IDX{N-1}]
+            # the list of strings to compare; load those vectors and concatenate
+            policies = [0,3,5,6]  
+            data_progress = data_progress[:, policies]
             N0 = data_progress.shape[0]
             n_games = int(N0 * n_teams * (n_teams - 1) / 2)
-            
+
             # Use every available pairwise preference for now
             data = np.zeros((n_games, 3))
             counter = 0
@@ -220,14 +227,14 @@ if __name__ == "__main__":
     print("Power scores (descending): ")
     print(p_old[idx_ranked])
 
-    policy_names = ["pi0_droid",
-                    "paligemma_vq_droid",
-                    "paligemma_fast_specialist_droid",
-                    "pi0_fast_droid",
-                    "paligemma_fast_droid",
-                    "paligemma_diffusion_droid",
-                    "paligemma_binning_droid",
-                    ]
+    # policy_names = ["pi0_droid",
+    #                 "paligemma_vq_droid",
+    #                 "paligemma_fast_specialist_droid",
+    #                 "pi0_fast_droid",
+    #                 "paligemma_fast_droid",
+    #                 "paligemma_diffusion_droid",
+    #                 "paligemma_binning_droid",
+    #                 ]
     
     print()
     print("Policy name ranking: ")

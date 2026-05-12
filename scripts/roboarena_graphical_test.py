@@ -6,6 +6,7 @@ To find the upper bound on expected efficiency gains from fixed sequence testing
 
 import numpy as np
 import os
+import copy
 import tqdm
 import tempfile
 import matplotlib.pyplot as plt
@@ -18,18 +19,17 @@ import pandas as pd
 # Parameters
 #############################################
 Nmax = 500
-n_runs = 10
+n_runs = 1
 n_prior = 20
 alpha = 0.1
 FIGSIZE = (12, 10)
-beta = -1.0  # tuning parameter for alpha allocation in graphical test
+beta = 10.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'roboarena_graphical_test_results'
+results_dir = 'outputs/roboarena_graphical_test_results'
 os.makedirs(results_dir, exist_ok=True)
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
-
 
 def get_real_evals():
     """
@@ -39,13 +39,13 @@ def get_real_evals():
     data_path = os.path.join(os.path.dirname(__file__), "..", "data", "roboarena", filename)
     df = pd.read_csv(data_path)
     eval_results = {}
+    eval_results["paligemma_binning_droid"] = df["paligemma_binning_droid"].dropna().to_numpy()
     eval_results["pi0_droid"] = df["pi0_droid"].dropna().to_numpy()
     # eval_results["paligemma_vq_droid"] = df["paligemma_vq_droid"].dropna().to_numpy()
     # eval_results["paligemma_fast_specialist_droid"] = df["paligemma_fast_specialist_droid"].dropna().to_numpy()
     # eval_results["paligemma_fast_droid"] = df["paligemma_fast_droid"].dropna().to_numpy()
+    eval_results["paligemma_diffusion_droid"] = df["paligemma_diffusion_droid"].dropna().to_numpy()
     eval_results["pi0_fast_droid"] = df["pi0_fast_droid"].dropna().to_numpy()
-    # eval_results["paligemma_diffusion_droid"] = df["paligemma_diffusion_droid"].dropna().to_numpy()
-    eval_results["paligemma_binning_droid"] = df["paligemma_binning_droid"].dropna().to_numpy()
     return eval_results
 
 def get_ranking_from_rejections(rejected_hypotheses, null_hypotheses, policy_index):
@@ -102,6 +102,79 @@ def allocate_alpha(diffs: list[float], total_alpha: float = 0.05, beta=1) -> np.
         raise ValueError("total_alpha must be in (0, 1].")
     weights = np.exp(diffs * beta)
     return total_alpha * (weights / weights.sum())
+
+def load_all_data():
+    data_dir = os.path.dirname(os.path.abspath(__file__))
+    data_progress = np.genfromtxt(
+        f"{data_dir}/../data/roboarena/per_trial_progress_data.csv",
+        delimiter=",",
+        dtype=float,
+        skip_header=1,
+        filling_values=-1,
+    )
+    data_preference = np.genfromtxt(
+        f"{data_dir}/../data/roboarena/policy_preferences.csv",
+        delimiter=",",
+        dtype=str,
+        skip_header=1,
+        filling_values="missing",
+    )
+
+    print()
+    print("First 5 rows: ")
+    print()
+    print(data_progress[:5, :])
+    print()
+
+    N0 = data_progress.shape[0]
+    n_policies = data_progress.shape[1]
+    assert data_preference.shape[0] == N0
+
+    print("N0: ", N0)
+    print("N policies: ", n_policies)
+
+    counter = 0
+    data_progress_filtered = np.zeros((N0, n_policies))
+    data_preference_filtered = np.zeros((N0, 3))
+    binning_preferred = 0
+    binning_not_preferred = 0
+    binning_neutral = 0
+    for i in range(N0):
+        is_complete = True
+        if np.min(data_progress[i, :]) < 0:
+            is_complete = False
+        if is_complete:
+            data_progress_filtered[counter, :] = copy.deepcopy(data_progress[i, :])
+            # bool0 = [policy == data_preference[i, 0] for policy in policies]
+            # idx0 = np.argwhere(bool0)
+            # bool1 = [policy == data_preference[i, 1] for policy in policies]
+            # idx1 = np.argwhere(bool1)
+            # data_preference_filtered[counter, 0] = idx0[0][0]
+            # data_preference_filtered[counter, 1] = idx1[0][0]
+            # data_preference_filtered[counter, 2] = float(data_preference[i, 2])
+
+            # if idx0 == 6 and float(data_preference[i, 2]) < 0.25:
+            #     binning_preferred += 1
+            # elif idx0 == 6 and np.isclose(float(data_preference[i, 2]), 0.5):
+            #     binning_neutral += 1
+            # elif idx1 == 6 and float(data_preference[i, 2]) > 0.75:
+            #     binning_not_preferred += 1
+            # elif idx1 == 6 and np.isclose(float(data_preference[i, 2]), 0.5):
+            #     binning_neutral += 1
+            # else:
+            #     pass
+
+            # # Update counter
+            counter += 1
+
+    data_progress_filtered_truncated = copy.deepcopy(
+        data_progress_filtered[:counter, :]
+    )
+    # data_preference_filtered_truncated = copy.deepcopy(
+    #     data_preference_filtered[:counter, :]
+    # )
+    # return data_preference_filtered_truncated, data_progress_filtered_truncated
+    return data_progress_filtered_truncated
 
 def allocate_weights(diffs: list[float], beta=1) -> np.ndarray:
     """
@@ -219,6 +292,7 @@ def get_policy_summary(eval_results):
     return Nmax
 
 def main():
+    bernoulli=False
     eval_results = get_real_evals()
     Nmax = get_policy_summary(eval_results)
     prior_evals, real_evals = split_eval(eval_results, Nmax, nruns=n_prior)
@@ -228,6 +302,10 @@ def main():
 
     for i, policy in enumerate(policies):
         policy_data[i] = real_evals[policy]
+
+    policy_data = policy_data.T  # shape (Nmax - n_prior, n_policies)
+    data_progress_filtered_truncated = load_all_data()
+    policy_data = data_progress_filtered_truncated[:, [6, 0,5,3]]
 
     num_hypotheses = n_policies * (n_policies - 1) // 2
     sim_means = [np.mean(prior_evals[k]) for k in policies]
@@ -298,7 +376,6 @@ def main():
     for i, policy in policy_index.items():
         print(f"Policy {policy} mean: ", np.mean(policy_data[:,i]))
     print("------------------------")
-
     for run in range(n_runs):
         # Graphical multitest
         print("Running graphical multitest...")
@@ -307,14 +384,14 @@ def main():
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
-        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time = (
+        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected = (
             graphical_test.sequential_graphical_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
                 alpha_per_hypothesis=alpha_per_hypothesis,
                 weighted_G=weighted_G, verbose=True,
             )
         )
-        breakpoint()
+
         _accumulate_samples(samples, run, decision_times)
         animate(graphs_over_time, results_dir, Nmax, n_prior)
         for key, value in decision_times.items():
@@ -345,7 +422,7 @@ def main():
         # Bonferroni
         print("Running Bonferroni corrected individual tests for comparison...")
         rejected_hypotheses_bonferroni, decision_times_bonferroni = graphical_test.bonferroni_multitest(
-            null_hypotheses_policy_indices, policy_data, Nmax, alpha
+            null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
         )
         _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni)
         for key, value in decision_times_bonferroni.items():
@@ -358,7 +435,7 @@ def main():
         rejected_hypotheses_weighted_bonferroni, decision_times_weighted_bonferroni = (
             graphical_test.weighted_bonferroni_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
-                alpha_per_hypothesis_weighted_bonferroni,
+                alpha_per_hypothesis_weighted_bonferroni, bernoulli=bernoulli
             )
         )
         _accumulate_samples(samples_weighted_bonferroni, run, decision_times_weighted_bonferroni)
@@ -370,7 +447,7 @@ def main():
         # Fixed sequence
         print("Running Fixed sequence individual tests for comparison...")
         rejected_hypotheses_fixed, decision_times_fixed = graphical_test.fixed_multitest(
-            null_hypotheses_policy_indices, policy_data, Nmax, alpha
+            null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
         )
         _accumulate_samples(samples_fixed, run, decision_times_fixed)
         for key, value in decision_times_fixed.items():
@@ -378,37 +455,37 @@ def main():
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_fixed)
         print("Decision times: ", decision_times_fixed, "\n")
 
-    policy_ranking, wins = get_ranking_from_rejections(
-        rejected_hypotheses_indices, null_hypotheses, policy_index
-    )
-    print("Policy ranking based on graphical multitest rejections: ", policy_ranking)
+    # policy_ranking, wins = get_ranking_from_rejections(
+    #     rejected_hypotheses_indices, null_hypotheses, policy_index
+    # )
+    # print("Policy ranking based on graphical multitest rejections: ", policy_ranking)
 
-    rejected_hypotheses_bonferroni_indices = [
-        null_hypotheses.index((policy_index[p0][1], policy_index[p1][1]))
-        for (p0, p1) in rejected_hypotheses_bonferroni
-        if (policy_index[p0][1], policy_index[p1][1]) in null_hypotheses
-    ]
-    policy_ranking_bonferroni, wins_bonferroni = get_ranking_from_rejections(
-        rejected_hypotheses_bonferroni_indices, null_hypotheses, policy_index
-    )
-    print("Policy ranking based on Bonferroni corrected test rejections: ", policy_ranking_bonferroni)
+    # rejected_hypotheses_bonferroni_indices = [
+    #     null_hypotheses.index((policy_index[p0][1], policy_index[p1][1]))
+    #     for (p0, p1) in rejected_hypotheses_bonferroni
+    #     if (policy_index[p0][1], policy_index[p1][1]) in null_hypotheses
+    # ]
+    # policy_ranking_bonferroni, wins_bonferroni = get_ranking_from_rejections(
+    #     rejected_hypotheses_bonferroni_indices, null_hypotheses, policy_index
+    # )
+    # print("Policy ranking based on Bonferroni corrected test rejections: ", policy_ranking_bonferroni)
 
-    with open(f'{results_dir}/empirical_real_means_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
-        f.write("Real-sim pairs: \n")
-        for real_mean, sim_mean in real_sim_means:
-            f.write(f"Real mean: {real_mean:.4f}, Sim mean: {sim_mean:.4f}\n")
-        f.write("==============================\n")
-        f.write("Empirical real means: " + str(np.mean(policy_data, axis=0)) + "\n")
-        f.write("True real means: " + str(real_means) + "\n")
-        f.write("==============================\n")
-        f.write("Policy ranking based on graphical multitest rejections: " + str(policy_ranking) + "\n")
-        print("Policy ranking based on: ")
-        for key, value in wins.items():
-            f.write(f"{key}: {value}\n")
-        f.write("Policy ranking based on Bonferroni corrected test rejections: " + str(policy_ranking_bonferroni) + "\n")
-        print("Policy ranking based on: ")
-        for key, value in wins_bonferroni.items():
-            f.write(f"{key}: {value}\n")
+    # with open(f'{results_dir}/empirical_real_means_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
+    #     f.write("Real-sim pairs: \n")
+    #     for real_mean, sim_mean in real_sim_means:
+    #         f.write(f"Real mean: {real_mean:.4f}, Sim mean: {sim_mean:.4f}\n")
+    #     f.write("==============================\n")
+    #     f.write("Empirical real means: " + str(np.mean(policy_data, axis=0)) + "\n")
+    #     f.write("True real means: " + str(real_means) + "\n")
+    #     f.write("==============================\n")
+    #     f.write("Policy ranking based on graphical multitest rejections: " + str(policy_ranking) + "\n")
+    #     print("Policy ranking based on: ")
+    #     for key, value in wins.items():
+    #         f.write(f"{key}: {value}\n")
+    #     f.write("Policy ranking based on Bonferroni corrected test rejections: " + str(policy_ranking_bonferroni) + "\n")
+    #     print("Policy ranking based on: ")
+    #     for key, value in wins_bonferroni.items():
+    #         f.write(f"{key}: {value}\n")
 
     _average_dict(avg_ttd, n_runs)
     _average_dict(avg_ttd_evalues, n_runs)

@@ -136,6 +136,7 @@ class SequentialGraphicalTest:
         after rejecting hypothesis i.
         """
         p = np.asarray(p_values, dtype=float)
+
         rejected: Set[int] = set()
         alpha_at_rejected = []
         graphs_over_time = []
@@ -162,6 +163,13 @@ class SequentialGraphicalTest:
             alpha_at_rejected.append(copy.deepcopy(self.alpha[i]))
             active = [j for j in range(self.num_hypotheses) if j not in rejected]
 
+            # Rejecting candidate i:
+            print("============================================================")
+            print(f"Rejecting hypothesis H{i} with p-value {p[i]:.4e} <= alpha {self.alpha[i]:.4e}")
+            print(f"Before rejection: ")
+            print("Graph G: \n", self.G, "\n")
+            print("alpha budgets: ", self.alpha, "\n")
+            
             # Update delta_j
             new_alpha = np.zeros_like(self.alpha)
             for j in active:
@@ -176,12 +184,12 @@ class SequentialGraphicalTest:
                         continue
 
                     denom = 1.0 - self.G[k, i] * self.G[i, k]
-                    # if np.isclose(denom, 0.0):
-                    #     breakpoint()
-                    #     raise ZeroDivisionError(
-                    #         f"Denominator became zero while updating edge ({k}, {j}). "
-                    #         "Check whether the graph satisfies the needed conditions."
-                    #     )
+                    if np.isclose(denom, 0.0):
+                        breakpoint()
+                        raise ZeroDivisionError(
+                            f"Denominator became zero while updating edge ({k}, {j}). "
+                            "Check whether the graph satisfies the needed conditions."
+                        )
 
                     if denom > 0.0: 
                         new_G[k, j] = (self.G[k, j] + self.G[k, i] * self.G[i, j]) / denom
@@ -192,6 +200,12 @@ class SequentialGraphicalTest:
                         breakpoint()
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
+            
+            print(f"After rejecting H{i}: ")
+            print("Graph G: \n", self.G, "\n")
+            print("alpha budgets: ", self.alpha, "\n")
+            print("============================================================\n")
+            breakpoint()
         return rejected, graphs_over_time, alpha_at_rejected
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
@@ -206,12 +220,25 @@ class SequentialGraphicalTest:
                 alternative=Hypothesis.P0LessThanP1, alpha=alpha/num_hypotheses, c=np.arange(2)
             )
         return bonferroni_step_test
+    
+    def initialize_graphical_nsm_test_partial_progress(self, Nmax, alpha):
+        nonparametric_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10
+            )
+        return nonparametric_nsm_test
+
+    def initialize_bonferroni_test_partial_progress(self, Nmax, alpha, num_hypotheses):
+        #bonferroni_step_test = StepTest(Hypothesis.P0LessThanP1, Nmax, alpha/num_hypotheses)
+        bonferroni_step_test = MirroredContinuousNsmTest(
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha/num_hypotheses, c=np.arange(11)/10
+            )
+        return bonferroni_step_test
 
     def run_test_on_data(self,test, data0, data1):
         result = test.run_on_sequence(data0, data1)
         return result
 
-    def fixed_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha):
+    def fixed_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False):
         '''
         Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
         Return the list of rejected hypotheses along with their decision times
@@ -219,7 +246,10 @@ class SequentialGraphicalTest:
         rejected_hypotheses = []
         decision_times = {}
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-            bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, 1)
+            if not bernoulli:
+                bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, 1)
+            else:
+                bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, 1)
             p0_index, p1_index = hypothesis_policy_indices
             data0 = policy_data[:, p0_index]
             data1 = policy_data[:, p1_index]
@@ -231,7 +261,7 @@ class SequentialGraphicalTest:
                 decision_times[hypothesis_policy_indices] = Nmax
         return rejected_hypotheses, decision_times
 
-    def bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha):
+    def bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False):
         '''
         Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
         Return the list of rejected hypotheses along with their decision times
@@ -240,7 +270,10 @@ class SequentialGraphicalTest:
         decision_times = {}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-            bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, num_hypotheses)
+            if not bernoulli:
+                bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, num_hypotheses)
+            else:
+                bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, num_hypotheses)
             p0_index, p1_index = hypothesis_policy_indices
             data0 = policy_data[:, p0_index]
             data1 = policy_data[:, p1_index]
@@ -252,7 +285,7 @@ class SequentialGraphicalTest:
                 decision_times[hypothesis_policy_indices] = Nmax
         return rejected_hypotheses, decision_times
 
-    def weighted_bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis):
+    def weighted_bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis, bernoulli=False):
         '''
         Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
         Return the list of rejected hypotheses along with their decision times
@@ -262,7 +295,10 @@ class SequentialGraphicalTest:
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
             alpha_i = alpha_per_hypothesis[i] 
-            bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha_i, 1)
+            if not bernoulli:
+                bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha_i, num_hypotheses)
+            else:
+                bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha_i, num_hypotheses)
             p0_index, p1_index = hypothesis_policy_indices
             data0 = policy_data[:, p0_index]
             data1 = policy_data[:, p1_index]
@@ -287,14 +323,16 @@ class SequentialGraphicalTest:
         return decision_str, time_of_decision
 
 
-    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False):
+    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False, bernoulli=False):
         '''
         Similar to graphical_multitest but we will run the graphical test sequentially after each new p-value is computed and update the graph and alpha budgets accordingly.
         '''
         rejected_hypotheses = []
         decision_times = {}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
-        
+        policy_evals = {i: [] for i in range(policy_data.shape[1])}
+        print(f"Running means: ", np.mean(policy_data[:,0]), np.mean(policy_data[:,1]), np.mean(policy_data[:,2]), "\n")
+
         if alpha_per_hypothesis is not None:
             self.set_params(alpha=alpha_per_hypothesis)
         if weighted_G is not None:
@@ -308,24 +346,30 @@ class SequentialGraphicalTest:
         p_values = np.ones(num_hypotheses)
         tests = dict()
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-            p0_index, p1_index = hypothesis_policy_indices
-            data0 = policy_data[:, p0_index]
-            data1 = policy_data[:, p1_index]
-
             # Getting data before running graphical test:
             if alpha_per_hypothesis is not None:
                 alpha_i = alpha_per_hypothesis[i]
             else:
                 alpha_i = self.alpha[i] # fraction of alpha allocated to this hypothesis
-            nsm_test = self.initialize_graphical_nsm_test(Nmax, alpha_i)
+            if not bernoulli:
+                nsm_test = self.initialize_graphical_nsm_test_partial_progress(Nmax, alpha_i)
+            else:
+                nsm_test = self.initialize_graphical_nsm_test(Nmax, alpha_i)
             tests[i] = nsm_test
         
-        # Have to fix this to only gather data for "active" hypotheses (here, hypotheses with value > alpha / N, e.g., over Bonferroni)
+        #################
+        # Initial diagnostic and alpha:
+        print("============================================================")
+        print("Initial graph G:\n", self.G)
+        print("Initial alpha budgets: ", self.alpha)
+        print("============================================================\n")
+        breakpoint()
         
+        # Have to fix this to only gather data for "active" hypotheses (here, hypotheses with value > alpha / N, e.g., over Bonferroni)
         hypotheses_completed = np.zeros(num_hypotheses)
         KK = np.zeros(num_hypotheses)
-
         # Active sampling scheme
+        iters = 0
         while np.min(hypotheses_completed) <= 0.5:
             # Get all rejected indices
             all_rejected = [i for i in range(num_hypotheses) if i in rejected]
@@ -340,22 +384,56 @@ class SequentialGraphicalTest:
                     hypotheses_completed[k] = 1.0
             
             # Iterate through test definitions
+            # Active data collection:
             for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+                # print(f"Processing hypothesis {i}, policies {hypothesis_policy_indices}, at iteration {iters}: ", self.alpha[i] >= (self.total_alpha / num_hypotheses))
                 if hypotheses_completed[i] <= 0.5 and self.alpha[i] >= (self.total_alpha / num_hypotheses): # Collect data only if: (a) active and (b) actively preferred
                     p0_index, p1_index = hypothesis_policy_indices
                     data0 = policy_data[:, p0_index]
                     data1 = policy_data[:, p1_index]
+                    # print(f"Policy indices and alpha: {p0_index}, {p1_index}, {self.alpha}")
                     k = int(KK[i])
+                    
+                    if k not in policy_evals[p0_index]:
+                        policy_evals[p0_index].append(k)
+                    if k not in policy_evals[p1_index]:
+                        policy_evals[p1_index].append(k)
 
+                    # no more trials available
+                    if k == len(data0):
+                        break 
                     nsm_test = tests[i]
+                    if len(policy_evals[p0_index]) % 50 == 0:
+                        print(
+                            "\n"
+                            "============================================================\n"
+                            f"  Iteration / Time : {k:<5d}    Hypothesis : H{i}\n"
+                            f"  Policy indices   : {hypothesis_policy_indices}\n"
+                            "------------------------------------------------------------\n"
+                            f"  alpha            : {self.alpha[i]:.4e}\n"
+                            f"  p-value          : {p_values[i]:.4e}\n"
+                            f"  samples          : ({len(policy_evals[p0_index])}, "
+                            f"{len(policy_evals[p1_index])})\n"
+                            f"  running means    : ({np.mean(data0[:k]):.4f}, "
+                            f"{np.mean(data1[:k]):.4f})\n"
+                            "------------------------------------------------------------\n"
+                            f"  Rejected         : {rejected}\n"
+                            "------------------------------------------------------------\n"
+                            f"  Current graph G:\n{self.G}\n"
+                            "============================================================\n"
+                        )
+                        breakpoint()
+                        # print(
+                        #     f"At time {k}, for hypothesis {i} with policy indices "
+                        #     f"{hypothesis_policy_indices} and alpha {self.alpha[i]}, collected "
+                        #     f"{len(policy_evals[p0_index])} and "
+                        #     f"{len(policy_evals[p1_index])} samples respectively"
+                        # )
+                        # print(f"Running means: ", np.mean(data0[:k]), np.mean(data1[:k]), "\n")
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
                     p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
                     KK[i] += 1
-                    # nsm_decision_str, nsm_time_of_decision = self.parse_nsm_test_result(nsm_result)
-                    # if nsm_decision_str == "P0LessThanP1": # reject null
-                    #     rejected_hypotheses.append(hypothesis_policy_indices)
-                    #     decision_times[hypothesis_policy_indices] = nsm_time_of_decision if nsm_time_of_decision is not None else Nmax
-            
+            iters+=1
             candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p_values[i] <= self.alpha[i]]
             if verbose:
                 print(f"At time {k}, p-values: {p_values}, alpha: {self.alpha}, candidates for rejection: {candidates}")

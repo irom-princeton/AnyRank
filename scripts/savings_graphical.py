@@ -24,7 +24,7 @@ FIGSIZE = (12, 10)
 ptune = 0.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'graphical_results_weighted_alpha'
+results_dir = 'outputs/graphical_results_weighted_alpha'
 os.makedirs(results_dir, exist_ok=True)
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
