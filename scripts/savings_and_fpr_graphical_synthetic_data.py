@@ -22,14 +22,14 @@ bernoulli = True
 n_policies = 5
 num_hypotheses = n_policies * (n_policies - 1) // 2
 Nmax = 1000
-n_runs = 5
+n_runs = 100
 n_prior = 20
 alpha = 0.05
 FIGSIZE = (12, 10)
 beta = 5.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'outputs/large_scale_graphical_test_results'
+results_dir = 'outputs/large_scale_graphical_test_results_v4'
 os.makedirs(results_dir, exist_ok=True)
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
@@ -51,14 +51,32 @@ def get_real_evals():
     eval_results["pi0_fast_droid"] = df["pi0_fast_droid"].dropna().to_numpy()
     return eval_results
 
-def get_synthetic_bernoulli_evals(n_policies, n_max=1000, means=None):
+def get_synthetic_bernoulli_evals(n_policies, n_max=1000, means=None, make_ranking_impossible=False):
     """
     Returns the real synthetic data
     """
-    if means is None:
-        means = (np.arange(n_policies) + 0.5) / n_policies
+    assert n_policies >= 2
+
+    if make_ranking_impossible:
+        if means is None:
+            means_base = (np.arange(n_policies-1) + 0.5) / (n_policies - 1.)
+            insertion_idx = n_policies // 2
+            means = np.zeros(n_policies)
+            for i in range(insertion_idx):
+                means[i] = means_base[i]
+            
+            means[insertion_idx] = means[insertion_idx-1]
+            for i in range(insertion_idx+1, n_policies):
+                means[i] = means_base[i-1]
+
+        else:
+            assert np.array(means).shape[0] == n_policies
+            assert np.isclose(np.min(np.diff(np.sort(np.array(means)))), 0.)
     else:
-        assert np.array(means).shape[0] == n_policies
+        if means is None:
+            means = (np.arange(n_policies) + 0.5) / n_policies
+        else:
+            assert np.array(means).shape[0] == n_policies
     
     eval_results = {}
     for i in range(n_policies):
@@ -224,6 +242,10 @@ def _fill_exchange_matrix(avg_ttd_dict, n_policies):
     for (p0_index, p1_index), ttd in avg_ttd_dict.items():
         p1_index_ex = n_policies - 1 - p1_index
         matrix[p0_index, p1_index_ex] = ttd
+    # for i in range(n_policies):
+    #     for j in range(n_policies - i - 1):
+    #         if matrix[i, j] <= 0.5:
+    #             matrix[i, j] = Nmax
     return matrix
 
 def split_eval(eval_results, Nmax, nruns=10):
@@ -238,9 +260,17 @@ def get_policy_summary(eval_results):
     return Nmax
 
 def main():
+    make_ranking_impossible = True
     policy_true_means = None
     ALPHA_AT_REJECTION_SORTED = np.zeros((num_hypotheses, n_runs))
-    CORRECT_FULL_RANKING = np.zeros(n_runs)
+    CORRECT_FULL_RANKING_ALT = []
+    CORRECT_PARTIAL_RANKING_NULL = []
+
+    INCOMPLETE_FULL_RANKING_ALT = []
+    INCORRECT_FULL_RANKING_ALT = []
+
+    INCOMPLETE_PARTIAL_RANKING_NULL = []
+    INCORRECT_PARTIAL_RANKING_NULL = []
     #####################################################
     # Looping over multiple runs to generate policy data
     #####################################################
@@ -260,9 +290,12 @@ def main():
         ### GENERATE DATA ###
         #####################
         if policy_true_means is None:
-            eval_results, policy_true_means = get_synthetic_bernoulli_evals(n_policies=n_policies, n_max=Nmax)
+            eval_results, policy_true_means = get_synthetic_bernoulli_evals(n_policies=n_policies, n_max=Nmax, make_ranking_impossible=make_ranking_impossible)
         else:
             eval_results, policy_true_means = get_synthetic_bernoulli_evals(n_policies=n_policies, n_max=Nmax, means=policy_true_means)
+        
+        if make_ranking_impossible:
+            assert np.isclose(np.min(np.diff(np.sort(policy_true_means))), 0.)
         
         prior_evals, real_evals = split_eval(eval_results, Nmax, nruns=n_prior)
         policies = list(prior_evals.keys())
@@ -282,7 +315,19 @@ def main():
             (sim_means[i], sim_means[j])
             for i in range(n_policies) for j in range(i + 1, n_policies)
         ]
-
+        correct_hypothesis_signs = np.zeros(num_hypotheses)
+        counter = 0
+        for i in range(n_policies):
+            for j in range(i+1, n_policies):
+                if policy_true_means[j] > policy_true_means[i]:
+                    correct_hypothesis_signs[counter] = 1. 
+                elif policy_true_means[j] < policy_true_means[i]:
+                    correct_hypothesis_signs[counter] = -1. 
+                else:
+                    pass
+                
+                counter += 1
+        
         null_hypotheses_policy_indices = [
             (i, j) for i in range(n_policies) for j in range(i + 1, n_policies)
         ]
@@ -338,20 +383,66 @@ def main():
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
-        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, correct_ranking = (
+        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, hypothesis_decisions = (
             graphical_test.sequential_graphical_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
                 alpha_per_hypothesis=alpha_per_hypothesis,
                 weighted_G=weighted_G, verbose=False,
             )
         )
-        CORRECT_FULL_RANKING[run] = float(correct_ranking)
-        ALPHA_AT_REJECTION_SORTED[:, run] = np.sort(alpha_at_rejected)
+
+        if np.isclose(np.linalg.norm(correct_hypothesis_signs - hypothesis_decisions), 0.) and np.min(np.abs(correct_hypothesis_signs)) > 0.5:
+            # Then alternative is true (full ranking is POSSIBLE) [2nd condition]
+            # AND we correctly ranked everything
+            CORRECT_FULL_RANKING_ALT.append(run) # All hypotheses decided correctly
+        elif np.isclose(np.linalg.norm(correct_hypothesis_signs - hypothesis_decisions), 0.) and np.min(np.abs(correct_hypothesis_signs)) < 0.5:
+            # Then null is true (full ranking is IMPOSSIBLE) [2nd condition]
+            # AND we did not make an erroneous rejection!
+            CORRECT_PARTIAL_RANKING_NULL.append(run) # At least one hypothesis was undecidable (means were the same)
+        elif (np.linalg.norm(correct_hypothesis_signs - hypothesis_decisions) >= 0.1) and np.min(np.abs(correct_hypothesis_signs)) > 0.5:
+            # Then alternative is true (full ranking is POSSIBLE) [2nd condition]
+            # AND we incorrectly ranked everything
+            INCOMPLETE_FULL_RANKING_ALT.append(run) # At least one hypothesis not decided CORRECTLY
+            if np.max(np.abs(correct_hypothesis_signs - hypothesis_decisions) > 1.5):
+                INCORRECT_FULL_RANKING_ALT.append(run)
+            
+        elif (np.linalg.norm(correct_hypothesis_signs - hypothesis_decisions) >= 0.1) and np.min(np.abs(correct_hypothesis_signs)) < 0.5:
+            # Then null is true (full ranking is IMPOSSIBLE) [2nd condition]
+            # AND we still make an error somewhere
+            INCOMPLETE_PARTIAL_RANKING_NULL.append(run) # Ranking is at least incomplete
+
+            # Now check if the ranking has an explicit error [True 0, Estimate +- 1] OR [TRUE +- 1, Estimate -+ 1]
+            for i in range(num_hypotheses):
+                if np.isclose(correct_hypothesis_signs[i], 0.) and np.abs(hypothesis_decisions[i]) > 0.5:
+                    INCORRECT_PARTIAL_RANKING_NULL.append(run)
+                    break
+                elif np.abs(correct_hypothesis_signs[i]) > 0.5 and np.abs(correct_hypothesis_signs[i] - hypothesis_decisions[i]) > 1.5:
+                    INCORRECT_PARTIAL_RANKING_NULL.append(run)
+                    break
+                else:
+                    pass
+            
+        else:
+            # Should not be possible to reach this state
+            raise ValueError("Outcome of graphical procedure unrecognized")
+        
+        ALPHA_AT_REJECTION_SORTED[:len(alpha_at_rejected), run] = np.sort(alpha_at_rejected)
         
         _accumulate_samples(samples, run, decision_times)
         animate(graphs_over_time, results_dir, Nmax, n_prior)
-        for key, value in decision_times.items():
-            avg_ttd[key] = avg_ttd.get(key, 0) + value
+        # This has a bug when not everything is rejected, because decision times does not account for the non-rejected hypotheses
+        for i, key_null in enumerate(null_hypotheses_policy_indices):
+            found_key = False 
+            for key, value in decision_times.items():
+                if key == key_null:
+                    found_key = True
+                    avg_ttd[key] = avg_ttd.get(key, 0) + value
+                    break 
+            
+            # Fix bug to keep time-to-decision for unrejected hypotheses
+            if not found_key:
+                avg_ttd[key] = avg_ttd.get(key, 0) + Nmax
+        
         # print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
         # print("Decision times: ", decision_times, "\n")
 
@@ -410,7 +501,37 @@ def main():
             avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + value
         # print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_fixed)
         # print("Decision times: ", decision_times_fixed, "\n")
+        
+        print()
+        print(f"After iteration {run+1}:")
 
+        proportion_fully_correct_under_alt = float(len(CORRECT_FULL_RANKING_ALT)) / (run+1)
+        proportion_fully_correct_under_null = float(len(CORRECT_PARTIAL_RANKING_NULL)) / (run+1)
+        proportion_with_actively_erroneous_decisions = float(len(INCORRECT_FULL_RANKING_ALT) + len(INCORRECT_PARTIAL_RANKING_NULL)) / (run+1)
+        proportion_that_only_fail_to_fully_rank = float(len(INCOMPLETE_FULL_RANKING_ALT) - len(INCORRECT_FULL_RANKING_ALT)) / (run+1)
+        proportion_that_only_fail_to_complete_partial_ranking = float(len(INCOMPLETE_PARTIAL_RANKING_NULL) - len(INCORRECT_PARTIAL_RANKING_NULL)) / (run+1)
+        
+        print()
+        print("Proportion of correct full rankings under alt [POWER]: ")
+        print(f"{proportion_fully_correct_under_alt:0.2f}")
+        print()
+        print("Proportion with undecided cases under alt [TYPE-II ERROR]: ")
+        print(f"{proportion_that_only_fail_to_fully_rank:0.2f}")
+        print()
+        print("Proportion of correct partial rankings under equality condition [POWER]: ")
+        print(f"{proportion_fully_correct_under_null:0.2f}")
+        print()
+        print("Proportion of undecided partial rankings under equality condition [TYPE-II ERROR]: ")
+        print(f"{proportion_that_only_fail_to_complete_partial_ranking:0.2f}")
+        print()
+        print("Proportion of erroneous rankings [TYPE-I ERROR]: ")
+        print(f"{proportion_with_actively_erroneous_decisions:0.2f}")
+
+    print()
+    print("-----------------------")
+    print()
+    print("Finished for loop!")
+    print()
     _average_dict(avg_ttd, n_runs)
     _average_dict(avg_ttd_evalues, n_runs)
     _average_dict(avg_ttd_bonferroni, n_runs)
@@ -530,11 +651,29 @@ def main():
         print(np.mean(ALPHA_AT_REJECTION_SORTED, axis=1))
     
     np.save(f'{results_dir}/alpha_at_rejection_sorted_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', ALPHA_AT_REJECTION_SORTED)
-    np.save(f'{results_dir}/correct_full_ranking_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', CORRECT_FULL_RANKING)
+    # np.save(f'{results_dir}/correct_full_ranking_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', CORRECT_FULL_RANKING)
+
+    proportion_fully_correct_under_alt = float(len(CORRECT_FULL_RANKING_ALT)) / (n_runs)
+    proportion_fully_correct_under_null = float(len(CORRECT_PARTIAL_RANKING_NULL)) / (n_runs)
+    proportion_with_actively_erroneous_decisions = float(len(INCORRECT_FULL_RANKING_ALT) + len(INCORRECT_PARTIAL_RANKING_NULL)) / (n_runs)
+    proportion_that_only_fail_to_fully_rank = float(len(INCOMPLETE_FULL_RANKING_ALT) - len(INCORRECT_FULL_RANKING_ALT)) / (n_runs)
+    proportion_that_only_fail_to_complete_partial_ranking = float(len(INCOMPLETE_PARTIAL_RANKING_NULL) - len(INCORRECT_PARTIAL_RANKING_NULL)) / (n_runs)
     
     print()
-    print("Proportion of correct full rankings: ")
-    print(f"{np.mean(CORRECT_FULL_RANKING):0.2f}")
+    print("Proportion of correct full rankings under alt [POWER]: ")
+    print(f"{proportion_fully_correct_under_alt:0.2f}")
+    print()
+    print("Proportion with undecided cases under alt [TYPE-II ERROR]: ")
+    print(f"{proportion_that_only_fail_to_fully_rank:0.2f}")
+    print()
+    print("Proportion of correct partial rankings under equality condition [POWER]: ")
+    print(f"{proportion_fully_correct_under_null:0.2f}")
+    print()
+    print("Proportion of undecided partial rankings under equality condition [TYPE-II ERROR]: ")
+    print(f"{proportion_that_only_fail_to_complete_partial_ranking:0.2f}")
+    print()
+    print("Proportion of erroneous rankings [TYPE-I ERROR]: ")
+    print(f"{proportion_with_actively_erroneous_decisions:0.2f}")
     print("------------------------")
 
     #############################################

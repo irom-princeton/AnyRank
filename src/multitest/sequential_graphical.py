@@ -163,12 +163,13 @@ class SequentialGraphicalTest:
             alpha_at_rejected.append(copy.deepcopy(self.alpha[i]))
             active = [j for j in range(self.num_hypotheses) if j not in rejected]
 
-            # Rejecting candidate i:
-            print("============================================================")
-            print(f"Rejecting hypothesis H{i} with p-value {p[i]:.4e} <= alpha {self.alpha[i]:.4e}")
-            print(f"Before rejection: ")
-            print("Graph G: \n", self.G, "\n")
-            print("alpha budgets: ", self.alpha, "\n")
+            if verbose:
+                # Rejecting candidate i:
+                print("============================================================")
+                print(f"Rejecting hypothesis H{i} with p-value {p[i]:.4e} <= alpha {self.alpha[i]:.4e}")
+                print(f"Before rejection: ")
+                print("Graph G: \n", self.G, "\n")
+                print("alpha budgets: ", self.alpha, "\n")
             
             # Update delta_j
             new_alpha = np.zeros_like(self.alpha)
@@ -201,11 +202,13 @@ class SequentialGraphicalTest:
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
             
-            print(f"After rejecting H{i}: ")
-            print("Graph G: \n", self.G, "\n")
-            print("alpha budgets: ", self.alpha, "\n")
-            print("============================================================\n")
-            breakpoint()
+            if verbose:
+                print(f"After rejecting H{i}: ")
+                print("Graph G: \n", self.G, "\n")
+                print("alpha budgets: ", self.alpha, "\n")
+                print("============================================================\n")
+                breakpoint()
+            
         return rejected, graphs_over_time, alpha_at_rejected
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
@@ -331,7 +334,7 @@ class SequentialGraphicalTest:
         decision_times = {}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         policy_evals = {i: [] for i in range(policy_data.shape[1])}
-        print(f"Running means: ", np.mean(policy_data[:,0]), np.mean(policy_data[:,1]), np.mean(policy_data[:,2]), "\n")
+        print(f"Running means: ", np.mean(policy_data, axis=0), "\n")
 
         if alpha_per_hypothesis is not None:
             self.set_params(alpha=alpha_per_hypothesis)
@@ -359,14 +362,17 @@ class SequentialGraphicalTest:
         
         #################
         # Initial diagnostic and alpha:
-        print("============================================================")
-        print("Initial graph G:\n", self.G)
-        print("Initial alpha budgets: ", self.alpha)
-        print("============================================================\n")
-        breakpoint()
+        if verbose:
+            print("============================================================")
+            print("Initial graph G:\n", self.G)
+            print("Initial alpha budgets: ", self.alpha)
+            print("============================================================\n")
+            breakpoint()
         
         # Have to fix this to only gather data for "active" hypotheses (here, hypotheses with value > alpha / N, e.g., over Bonferroni)
         hypotheses_completed = np.zeros(num_hypotheses)
+        hypotheses_correct = np.zeros(num_hypotheses)
+
         KK = np.zeros(num_hypotheses)
         # Active sampling scheme
         iters = 0
@@ -377,18 +383,23 @@ class SequentialGraphicalTest:
             # Mark all rejected hypotheses as completed
             for k in range(len(all_rejected)):
                 if hypotheses_completed[all_rejected[k]] <= 0.5:
-                    hypotheses_completed[all_rejected[k]] = 1.0 
+                    hypotheses_completed[all_rejected[k]] = 1.0
             
             # Hypothesis also completed if no more samples may be drawn
             for k in range(num_hypotheses):
                 if KK[k] >= Nmax:
                     hypotheses_completed[k] = 1.0
             
+            active_alpha = copy.deepcopy(self.alpha)
+            for i in range(num_hypotheses):
+                if hypotheses_completed[i] > 0.5:
+                    active_alpha[i] *= 0.
+            
             # Iterate through test definitions
             # Active data collection:
             for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
                 # print(f"Processing hypothesis {i}, policies {hypothesis_policy_indices}, at iteration {iters}: ", self.alpha[i] >= (self.total_alpha / num_hypotheses))
-                if hypotheses_completed[i] <= 0.5 and self.alpha[i] >= (np.max(self.alpha)-1e-8): # Collect data only if: (a) active and (b) actively preferred
+                if hypotheses_completed[i] <= 0.5 and self.alpha[i] >= (np.max(active_alpha)-1e-8): # Collect data only if: (a) active and (b) actively preferred
                     p0_index, p1_index = hypothesis_policy_indices
                     data0 = policy_data[:, p0_index]
                     data1 = policy_data[:, p1_index]
@@ -401,29 +412,33 @@ class SequentialGraphicalTest:
                         policy_evals[p1_index].append(k)
 
                     # no more trials available
-                    if k == len(data0):
+                    if k == len(data0) - 1:
+                        hypotheses_completed[i] = 1.0
+                        KK[i] += 1
                         break 
+                    
                     nsm_test = tests[i]
-                    if len(policy_evals[p0_index]) % 50 == 0:
-                        print(
-                            "\n"
-                            "============================================================\n"
-                            f"  Iteration / Time : {k:<5d}    Hypothesis : H{i}\n"
-                            f"  Policy indices   : {hypothesis_policy_indices}\n"
-                            "------------------------------------------------------------\n"
-                            f"  alpha            : {self.alpha[i]:.4e}\n"
-                            f"  p-value          : {p_values[i]:.4e}\n"
-                            f"  samples          : ({len(policy_evals[p0_index])}, "
-                            f"{len(policy_evals[p1_index])})\n"
-                            f"  running means    : ({np.mean(data0[:k]):.4f}, "
-                            f"{np.mean(data1[:k]):.4f})\n"
-                            "------------------------------------------------------------\n"
-                            f"  Rejected         : {rejected}\n"
-                            "------------------------------------------------------------\n"
-                            f"  Current graph G:\n{self.G}\n"
-                            "============================================================\n"
-                        )
-                        breakpoint()
+                    if verbose:
+                        if len(policy_evals[p0_index]) % 50 == 0:
+                            print(
+                                "\n"
+                                "============================================================\n"
+                                f"  Iteration / Time : {k:<5d}    Hypothesis : H{i}\n"
+                                f"  Policy indices   : {hypothesis_policy_indices}\n"
+                                "------------------------------------------------------------\n"
+                                f"  alpha            : {self.alpha[i]:.4e}\n"
+                                f"  p-value          : {p_values[i]:.4e}\n"
+                                f"  samples          : ({len(policy_evals[p0_index])}, "
+                                f"{len(policy_evals[p1_index])})\n"
+                                f"  running means    : ({np.mean(data0[:k]):.4f}, "
+                                f"{np.mean(data1[:k]):.4f})\n"
+                                "------------------------------------------------------------\n"
+                                f"  Rejected         : {rejected}\n"
+                                "------------------------------------------------------------\n"
+                                f"  Current graph G:\n{self.G}\n"
+                                "============================================================\n"
+                            )
+                            breakpoint()
                         # print(
                         #     f"At time {k}, for hypothesis {i} with policy indices "
                         #     f"{hypothesis_policy_indices} and alpha {self.alpha[i]}, collected "
@@ -431,7 +446,13 @@ class SequentialGraphicalTest:
                         #     f"{len(policy_evals[p1_index])} samples respectively"
                         # )
                         # print(f"Running means: ", np.mean(data0[:k]), np.mean(data1[:k]), "\n")
+                    
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
+                    if nsm_result.decision == Decision.AcceptAlternative:
+                        hypotheses_correct[i] = 1.0 
+                    elif nsm_result.decision == Decision.AcceptNull:
+                        hypotheses_correct[i] = -1.0
+                    
                     p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
                     KK[i] += 1
             iters+=1
@@ -460,7 +481,7 @@ class SequentialGraphicalTest:
                         nsm_test = tests[i]
                         nsm_test.set_alpha(self.alpha[i])
         
-        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected                
+        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct                
                         
         
         # for k in range(len(policy_data)): # sequentially go through data points
