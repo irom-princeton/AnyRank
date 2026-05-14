@@ -11,8 +11,8 @@ import tqdm
 import tempfile
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
-from src.multitest.sequential_graphical import SequentialGraphicalTest
-from src.multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
+from multitest.sequential_graphical import SequentialGraphicalTest
+from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
 import pandas as pd
 
 #############################################
@@ -23,10 +23,10 @@ n_runs = 1
 n_prior = 20
 alpha = 0.1
 FIGSIZE = (12, 10)
-beta = 0.0  # tuning parameter for alpha allocation in graphical test
+beta = 1.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'outputs/roboarena_graphical_test_results'
+results_dir = 'outputs/roboarena_all'
 os.makedirs(results_dir, exist_ok=True)
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
@@ -41,9 +41,9 @@ def get_real_evals():
     eval_results = {}
     eval_results["paligemma_binning_droid"] = df["paligemma_binning_droid"].dropna().to_numpy()
     eval_results["pi0_droid"] = df["pi0_droid"].dropna().to_numpy()
-    # eval_results["paligemma_vq_droid"] = df["paligemma_vq_droid"].dropna().to_numpy()
-    # eval_results["paligemma_fast_specialist_droid"] = df["paligemma_fast_specialist_droid"].dropna().to_numpy()
-    # eval_results["paligemma_fast_droid"] = df["paligemma_fast_droid"].dropna().to_numpy()
+    eval_results["paligemma_vq_droid"] = df["paligemma_vq_droid"].dropna().to_numpy()
+    eval_results["paligemma_fast_specialist_droid"] = df["paligemma_fast_specialist_droid"].dropna().to_numpy()
+    eval_results["paligemma_fast_droid"] = df["paligemma_fast_droid"].dropna().to_numpy()
     eval_results["paligemma_diffusion_droid"] = df["paligemma_diffusion_droid"].dropna().to_numpy()
     eval_results["pi0_fast_droid"] = df["pi0_fast_droid"].dropna().to_numpy()
     return eval_results
@@ -249,6 +249,7 @@ def plot_heatmap(matrix, title, save_path, real_sim_means, fmt='.2f'):
             text_color = 'white' if norm_val < 0.5 else 'black'
             ax.text(j, i, f'{val:{fmt}}', ha='center', va='center',
                     color=text_color, fontsize=int(min(FIGSIZE)))
+    
     fig.colorbar(cax)
     ax.set_xlabel('mu0')
     ax.set_ylabel('mu1')
@@ -305,8 +306,8 @@ def main():
 
     policy_data = policy_data.T  # shape (Nmax - n_prior, n_policies)
     data_progress_filtered_truncated = load_all_data()
-    policy_data = data_progress_filtered_truncated[:, [6, 0,5,3]]
-
+    policy_data = data_progress_filtered_truncated[:, [6,0,1,2,4,5,3]]  # ensure we only have the policies we expect
+    Nmax = min(Nmax, policy_data.shape[0])
     num_hypotheses = n_policies * (n_policies - 1) // 2
     sim_means = [np.mean(prior_evals[k]) for k in policies]
     policy_index = {i: policies[i] for i in range(n_policies)}
@@ -398,7 +399,7 @@ def main():
             avg_ttd[key] = avg_ttd.get(key, 0) + value
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
         print("Decision times: ", decision_times, "\n")
-
+        
         # E-value graphical multitest
         print("Running e-value graphical multitest...")
         egraphical_test = ESequentialGraphicalTest(
