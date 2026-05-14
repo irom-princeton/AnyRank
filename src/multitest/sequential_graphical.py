@@ -202,20 +202,10 @@ class SequentialGraphicalTest:
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
             
-<<<<<<< HEAD
-            if verbose:
-                print(f"After rejecting H{i}: ")
-                print("Graph G: \n", self.G, "\n")
-                print("alpha budgets: ", self.alpha, "\n")
-                print("============================================================\n")
-                breakpoint()
-            
-=======
             print(f"After rejecting H{i}: ")
             print("Graph G: \n", self.G, "\n")
             print("alpha budgets: ", self.alpha, "\n")
             print("============================================================\n")
->>>>>>> 2c01728 (sequential graphical)
         return rejected, graphs_over_time, alpha_at_rejected
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
@@ -341,12 +331,7 @@ class SequentialGraphicalTest:
         decision_times = {}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         policy_evals = {i: [] for i in range(policy_data.shape[1])}
-<<<<<<< HEAD
         print(f"Running means: ", np.mean(policy_data, axis=0), "\n")
-=======
-        Nmax = min(Nmax, policy_data.shape[0])
-        print(f"Running means: ", np.mean(policy_data[:,0]), np.mean(policy_data[:,1]), np.mean(policy_data[:,2]), "\n")
->>>>>>> 2c01728 (sequential graphical)
 
         if alpha_per_hypothesis is not None:
             self.set_params(alpha=alpha_per_hypothesis)
@@ -374,19 +359,12 @@ class SequentialGraphicalTest:
         
         #################
         # Initial diagnostic and alpha:
-<<<<<<< HEAD
         if verbose:
             print("============================================================")
             print("Initial graph G:\n", self.G)
             print("Initial alpha budgets: ", self.alpha)
             print("============================================================\n")
             breakpoint()
-=======
-        print("============================================================")
-        print("Initial graph G:\n", self.G)
-        print("Initial alpha budgets: ", self.alpha)
-        print("============================================================\n")
->>>>>>> 2c01728 (sequential graphical)
         
         # Have to fix this to only gather data for "active" hypotheses (here, hypotheses with value > alpha / N, e.g., over Bonferroni)
         hypotheses_completed = np.zeros(num_hypotheses)
@@ -465,7 +443,6 @@ class SequentialGraphicalTest:
                         break 
                     
                     nsm_test = tests[i]
-<<<<<<< HEAD
                     if verbose:
                         if len(policy_evals[p0_index]) % 50 == 0:
                             print(
@@ -487,27 +464,6 @@ class SequentialGraphicalTest:
                                 "============================================================\n"
                             )
                             breakpoint()
-=======
-                    if len(policy_evals[p0_index]) % 50 == 0:
-                        print(
-                            "\n"
-                            "============================================================\n"
-                            f"  Iteration / Time : {k:<5d}    Hypothesis : H{i}\n"
-                            f"  Policy indices   : {hypothesis_policy_indices}\n"
-                            "------------------------------------------------------------\n"
-                            f"  alpha            : {self.alpha[i]:.4e}\n"
-                            f"  p-value          : {p_values[i]:.4e}\n"
-                            f"  samples          : ({len(policy_evals[p0_index])}, "
-                            f"{len(policy_evals[p1_index])})\n"
-                            f"  running means    : ({np.mean(data0[:k]):.4f}, "
-                            f"{np.mean(data1[:k]):.4f})\n"
-                            "------------------------------------------------------------\n"
-                            f"  Rejected         : {rejected}\n"
-                            "------------------------------------------------------------\n"
-                            f"  Current graph G:\n{self.G}\n"
-                            "============================================================\n"
-                        )
->>>>>>> 2c01728 (sequential graphical)
                         # print(
                         #     f"At time {k}, for hypothesis {i} with policy indices "
                         #     f"{hypothesis_policy_indices} and alpha {self.alpha[i]}, collected "
