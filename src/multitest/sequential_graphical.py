@@ -1,6 +1,6 @@
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from sequentialized_barnard_tests.nonparametric_nsm import MirroredContinuousNsmTest
-from sequentialized_barnard_tests.nsm_graphical import MirroredContinuousNsmTest_AlphaAdaptive
+from sequentialized_barnard_tests.nsm_graphical import ContinuousNsmTest, MirroredContinuousNsmTest_AlphaAdaptive
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from math import comb
 import numpy as np
@@ -395,6 +395,34 @@ class SequentialGraphicalTest:
                 if hypotheses_completed[i] > 0.5:
                     active_alpha[i] *= 0.
             
+            # Hypothesis also completed if no more samples may be drawn
+            for k in range(num_hypotheses):
+                if hypotheses_completed[k] > 0.5 and np.isclose(hypotheses_correct[k], 0.0) and KK[k] < policy_data.shape[0]:
+                    hypothesis_policy_indices = ordered_hypotheses_policy_indices[k]
+                    p0_index, p1_index = hypothesis_policy_indices
+                    data0 = policy_data[:, p0_index]
+                    data1 = policy_data[:, p1_index]
+
+                    nsm_alt = ContinuousNsmTest(
+                        alternative=Hypothesis.P0LessThanP1, alpha=alpha_per_hypothesis[i], c=np.arange(2)/1.
+                    )
+                    nsm_null = ContinuousNsmTest(
+                        alternative=Hypothesis.P0MoreThanP1, alpha=alpha_per_hypothesis[i], c=np.arange(2)/1.
+                    )
+                    res_alt = nsm_alt.run_on_sequence(data0[:int(KK[k])], data1[:int(KK[k])])
+                    p_value_alt = res_alt.info["P-Value"]
+                    res_null = nsm_null.run_on_sequence(data0[:int(KK[k])], data1[:int(KK[k])])
+                    p_value_null = res_null.info["P-Value"]
+                    
+                    if p_value_alt < p_value_null:
+                        hypotheses_correct[k] = 1.0
+                    else:
+                        hypotheses_correct[k] = -1.0
+                    # print("Got deep in the fucking weeds!")
+                    # print("NULL p: ", p_value_null)
+                    # print("ALT p: ", p_value_alt)
+                    # breakpoint()
+
             # Iterate through test definitions
             # Active data collection:
             for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
@@ -455,6 +483,7 @@ class SequentialGraphicalTest:
                     
                     p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
                     KK[i] += 1
+            
             iters+=1
             candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p_values[i] <= self.alpha[i]]
             if verbose:

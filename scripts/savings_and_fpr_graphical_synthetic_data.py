@@ -21,15 +21,15 @@ import pandas as pd
 bernoulli = True
 n_policies = 5
 num_hypotheses = n_policies * (n_policies - 1) // 2
-Nmax = 1000
-n_runs = 100
+Nmax = 1020
+n_runs = 400
 n_prior = 20
 alpha = 0.05
 FIGSIZE = (12, 10)
-beta = 5.0  # tuning parameter for alpha allocation in graphical test
+beta = 0.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'outputs/large_scale_graphical_test_results_v4'
+results_dir = 'outputs/large_scale_graphical_test_results_v7'
 os.makedirs(results_dir, exist_ok=True)
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
@@ -319,9 +319,9 @@ def main():
         counter = 0
         for i in range(n_policies):
             for j in range(i+1, n_policies):
-                if policy_true_means[j] > policy_true_means[i]:
+                if policy_true_means[j] > policy_true_means[i] + 1e-8:
                     correct_hypothesis_signs[counter] = 1. 
-                elif policy_true_means[j] < policy_true_means[i]:
+                elif policy_true_means[j] < policy_true_means[i] - 1e-8:
                     correct_hypothesis_signs[counter] = -1. 
                 else:
                     pass
@@ -391,6 +391,13 @@ def main():
             )
         )
 
+        # print()
+        # print(correct_hypothesis_signs)
+        # print(hypothesis_decisions)
+        # print(p_values)
+        # print()
+        # print(rejected_hypotheses)
+        # breakpoint()
         if np.isclose(np.linalg.norm(correct_hypothesis_signs - hypothesis_decisions), 0.) and np.min(np.abs(correct_hypothesis_signs)) > 0.5:
             # Then alternative is true (full ranking is POSSIBLE) [2nd condition]
             # AND we correctly ranked everything
@@ -425,7 +432,7 @@ def main():
         else:
             # Should not be possible to reach this state
             raise ValueError("Outcome of graphical procedure unrecognized")
-        
+
         ALPHA_AT_REJECTION_SORTED[:len(alpha_at_rejected), run] = np.sort(alpha_at_rejected)
         
         _accumulate_samples(samples, run, decision_times)
@@ -434,15 +441,18 @@ def main():
         for i, key_null in enumerate(null_hypotheses_policy_indices):
             found_key = False 
             for key, value in decision_times.items():
-                if key == key_null:
+                if (key == key_null) and (found_key is False):
                     found_key = True
                     avg_ttd[key] = avg_ttd.get(key, 0) + value
-                    break 
             
             # Fix bug to keep time-to-decision for unrejected hypotheses
-            if not found_key:
-                avg_ttd[key] = avg_ttd.get(key, 0) + Nmax
+            if found_key is False:
+                avg_ttd[key_null] = avg_ttd.get(key_null, 0) + (Nmax - n_prior)
         
+        # exchange_matrix_fs = _fill_exchange_matrix(avg_ttd, n_policies)
+        # print("Exchange matrix for graphical multitest (time to decision): ")
+        # print(exchange_matrix_fs)
+
         # print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
         # print("Decision times: ", decision_times, "\n")
 
@@ -658,22 +668,22 @@ def main():
     proportion_with_actively_erroneous_decisions = float(len(INCORRECT_FULL_RANKING_ALT) + len(INCORRECT_PARTIAL_RANKING_NULL)) / (n_runs)
     proportion_that_only_fail_to_fully_rank = float(len(INCOMPLETE_FULL_RANKING_ALT) - len(INCORRECT_FULL_RANKING_ALT)) / (n_runs)
     proportion_that_only_fail_to_complete_partial_ranking = float(len(INCOMPLETE_PARTIAL_RANKING_NULL) - len(INCORRECT_PARTIAL_RANKING_NULL)) / (n_runs)
-    
+
     print()
     print("Proportion of correct full rankings under alt [POWER]: ")
-    print(f"{proportion_fully_correct_under_alt:0.2f}")
+    print(f"{proportion_fully_correct_under_alt:0.3f}")
     print()
     print("Proportion with undecided cases under alt [TYPE-II ERROR]: ")
-    print(f"{proportion_that_only_fail_to_fully_rank:0.2f}")
+    print(f"{proportion_that_only_fail_to_fully_rank:0.3f}")
     print()
     print("Proportion of correct partial rankings under equality condition [POWER]: ")
-    print(f"{proportion_fully_correct_under_null:0.2f}")
+    print(f"{proportion_fully_correct_under_null:0.3f}")
     print()
     print("Proportion of undecided partial rankings under equality condition [TYPE-II ERROR]: ")
-    print(f"{proportion_that_only_fail_to_complete_partial_ranking:0.2f}")
+    print(f"{proportion_that_only_fail_to_complete_partial_ranking:0.3f}")
     print()
     print("Proportion of erroneous rankings [TYPE-I ERROR]: ")
-    print(f"{proportion_with_actively_erroneous_decisions:0.2f}")
+    print(f"{proportion_with_actively_erroneous_decisions:0.3f}")
     print("------------------------")
 
     #############################################
