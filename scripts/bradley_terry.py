@@ -63,8 +63,11 @@ if __name__ == "__main__":
     current_file_path = Path(__file__).resolve()
     parent_dir = current_file_path.parent.parent
     data_dir = parent_dir / "data"
-    data_file_path = data_dir / "roboarena/Roboarena_progress.npy"
-    pref_file_path = data_dir / "roboarena/Roboarena_preference.npy"
+    data_file_path = "/n/fs/irom-testing/multitest/data/roboarena/data1/Roboarena_progress.npy"
+    pref_file_path = "/n/fs/irom-testing/multitest/data/roboarena/data1/Roboarena_preference.npy"
+    pref_data = np.load(pref_file_path)
+    data_progress = np.load(data_file_path)
+    
     parser.add_argument(
         "-dp",
         "--path",
@@ -135,7 +138,7 @@ if __name__ == "__main__":
             except:
                 print(data_file_path)
                 raise ValueError("Cannot find data at specified path. Please verify the data location and try again")
-            
+            breakpoint()
             # Assume data_progress is in form PROGRESS x [IDX0, IDX1, ..., IDX{N-1}]
             # the list of strings to compare; load those vectors and concatenate
             policies = [0,3,5,6]  
