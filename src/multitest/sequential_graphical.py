@@ -202,13 +202,10 @@ class SequentialGraphicalTest:
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
             
-            if verbose:
-                print(f"After rejecting H{i}: ")
-                print("Graph G: \n", self.G, "\n")
-                print("alpha budgets: ", self.alpha, "\n")
-                print("============================================================\n")
-                breakpoint()
-            
+            print(f"After rejecting H{i}: ")
+            print("Graph G: \n", self.G, "\n")
+            print("alpha budgets: ", self.alpha, "\n")
+            print("============================================================\n")
         return rejected, graphs_over_time, alpha_at_rejected
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):

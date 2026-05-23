@@ -11,8 +11,8 @@ import tqdm
 import tempfile
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
-from src.multitest.sequential_graphical import SequentialGraphicalTest
-from src.multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
+from multitest.sequential_graphical import SequentialGraphicalTest
+from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
 import pandas as pd
 
 #############################################
@@ -23,29 +23,35 @@ n_runs = 1
 n_prior = 20
 alpha = 0.1
 FIGSIZE = (12, 10)
-beta = 0.0  # tuning parameter for alpha allocation in graphical test
+beta = 1.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'outputs/roboarena_graphical_test_results'
+results_dir = 'outputs/roboarena_subset4'
 os.makedirs(results_dir, exist_ok=True)
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
 
-def get_real_evals():
+def get_real_evals(data_bins=["data1"]):
     """
     Returns the real and simulated means for a given task and policy from PlayWorld simulation
     """
     filename = "per_trial_progress_data.csv"
-    data_path = os.path.join(os.path.dirname(__file__), "..", "data", "roboarena", filename)
-    df = pd.read_csv(data_path)
-    eval_results = {}
-    eval_results["paligemma_binning_droid"] = df["paligemma_binning_droid"].dropna().to_numpy()
-    eval_results["pi0_droid"] = df["pi0_droid"].dropna().to_numpy()
-    # eval_results["paligemma_vq_droid"] = df["paligemma_vq_droid"].dropna().to_numpy()
-    # eval_results["paligemma_fast_specialist_droid"] = df["paligemma_fast_specialist_droid"].dropna().to_numpy()
-    # eval_results["paligemma_fast_droid"] = df["paligemma_fast_droid"].dropna().to_numpy()
-    eval_results["paligemma_diffusion_droid"] = df["paligemma_diffusion_droid"].dropna().to_numpy()
-    eval_results["pi0_fast_droid"] = df["pi0_fast_droid"].dropna().to_numpy()
+    keys = [
+        "paligemma_binning_droid",
+        "pi0_droid",
+        "paligemma_vq_droid",
+        "paligemma_fast_specialist_droid",
+        "paligemma_fast_droid",
+        "paligemma_diffusion_droid",
+        "pi0_fast_droid",
+    ]
+    eval_results = {k: np.array([]) for k in keys}
+
+    for data_bin in data_bins:
+        data_path = os.path.join(os.path.dirname(__file__), "..", "data", "roboarena", data_bin, filename)
+        df = pd.read_csv(data_path)
+        for k in keys:
+            eval_results[k] = np.concatenate([eval_results[k], df[k].dropna().to_numpy()])
     return eval_results
 
 def get_ranking_from_rejections(rejected_hypotheses, null_hypotheses, policy_index):
@@ -103,17 +109,17 @@ def allocate_alpha(diffs: list[float], total_alpha: float = 0.05, beta=1) -> np.
     weights = np.exp(diffs * beta)
     return total_alpha * (weights / weights.sum())
 
-def load_all_data():
+def load_all_data(data_bin="data1"):
     data_dir = os.path.dirname(os.path.abspath(__file__))
     data_progress = np.genfromtxt(
-        f"{data_dir}/../data/roboarena/per_trial_progress_data.csv",
+        f"{data_dir}/../data/roboarena/{data_bin}/per_trial_progress_data.csv",
         delimiter=",",
         dtype=float,
         skip_header=1,
         filling_values=-1,
     )
     data_preference = np.genfromtxt(
-        f"{data_dir}/../data/roboarena/policy_preferences.csv",
+        f"{data_dir}/../data/roboarena/{data_bin}/policy_preferences.csv",
         delimiter=",",
         dtype=str,
         skip_header=1,
@@ -249,6 +255,7 @@ def plot_heatmap(matrix, title, save_path, real_sim_means, fmt='.2f'):
             text_color = 'white' if norm_val < 0.5 else 'black'
             ax.text(j, i, f'{val:{fmt}}', ha='center', va='center',
                     color=text_color, fontsize=int(min(FIGSIZE)))
+    
     fig.colorbar(cax)
     ax.set_xlabel('mu0')
     ax.set_ylabel('mu1')
@@ -293,20 +300,22 @@ def get_policy_summary(eval_results):
 
 def main():
     bernoulli=False
-    eval_results = get_real_evals()
+    data_bins = ["data1", "data2"]
+    eval_results = get_real_evals(data_bins=data_bins)
     Nmax = get_policy_summary(eval_results)
     prior_evals, real_evals = split_eval(eval_results, Nmax, nruns=n_prior)
     policies = list(prior_evals.keys())
     n_policies = len(prior_evals)
     policy_data = np.zeros((n_policies, Nmax - n_prior))
-
+    
     for i, policy in enumerate(policies):
         policy_data[i] = real_evals[policy]
 
     policy_data = policy_data.T  # shape (Nmax - n_prior, n_policies)
     data_progress_filtered_truncated = load_all_data()
-    policy_data = data_progress_filtered_truncated[:, [6, 0,5,3]]
-
+    policy_data = data_progress_filtered_truncated[:, [6,0,1,2,4,5,3]]  # ensure we only have the policies we expect
+    Nmax = min(Nmax, policy_data.shape[0])
+    breakpoint()  # check data loading and shapes
     num_hypotheses = n_policies * (n_policies - 1) // 2
     sim_means = [np.mean(prior_evals[k]) for k in policies]
     policy_index = {i: policies[i] for i in range(n_policies)}
@@ -384,7 +393,7 @@ def main():
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
-        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected = (
+        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, hypotheses_correct = (
             graphical_test.sequential_graphical_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
                 alpha_per_hypothesis=alpha_per_hypothesis,
@@ -398,7 +407,7 @@ def main():
             avg_ttd[key] = avg_ttd.get(key, 0) + value
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
         print("Decision times: ", decision_times, "\n")
-
+        
         # E-value graphical multitest
         print("Running e-value graphical multitest...")
         egraphical_test = ESequentialGraphicalTest(
@@ -469,7 +478,6 @@ def main():
     #     rejected_hypotheses_bonferroni_indices, null_hypotheses, policy_index
     # )
     # print("Policy ranking based on Bonferroni corrected test rejections: ", policy_ranking_bonferroni)
-
     # with open(f'{results_dir}/empirical_real_means_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
     #     f.write("Real-sim pairs: \n")
     #     for real_mean, sim_mean in real_sim_means:
