@@ -1,0 +1,72 @@
+{
+    "n_environments": 2000,
+    "n_evaluations": 4000,
+    "n_policies": 5,
+    "n_redraws": 250,
+    "n_bootstrap": 5000,
+    "outcome_variance": 0.5,
+    "n_hypotheses": 10,
+    "alpha": 0.05,
+    "policy_0_mean": 0.1,
+    "policy_1_mean": 0.3,
+    "policy_2_mean": 0.5,
+    "policy_3_mean": 0.7,
+    "policy_4_mean": 0.9,
+    "BT_tol": 1e-05,
+    "fraction_consistent": 1.0,
+    "fraction_fully_correct": 0.002,
+    "mean_fraction_correct_decisions": 8.208,
+    "false_positive_rate": 0.0,
+    "hyp_0": [
+        0.1,
+        0.3
+    ],
+    "hyp_1": [
+        0.1,
+        0.5
+    ],
+    "hyp_2": [
+        0.1,
+        0.7
+    ],
+    "hyp_3": [
+        0.1,
+        0.9
+    ],
+    "hyp_4": [
+        0.3,
+        0.5
+    ],
+    "hyp_5": [
+        0.3,
+        0.7
+    ],
+    "hyp_6": [
+        0.3,
+        0.9
+    ],
+    "hyp_7": [
+        0.5,
+        0.7
+    ],
+    "hyp_8": [
+        0.5,
+        0.9
+    ],
+    "hyp_9": [
+        0.7,
+        0.9
+    ],
+    "power_by_hypothesis": [
+        0.596,
+        1.0,
+        1.0,
+        1.0,
+        0.54,
+        1.0,
+        1.0,
+        0.576,
+        1.0,
+        0.496
+    ]
+}

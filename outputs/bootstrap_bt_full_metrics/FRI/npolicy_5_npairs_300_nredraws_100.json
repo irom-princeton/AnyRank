@@ -1,0 +1,78 @@
+{
+    "n_policies": 5,
+    "n_redraws": 100,
+    "n_bootstrap": 2500,
+    "outcome_variance": 1.0,
+    "n_hypotheses": 10,
+    "alpha": 0.05,
+    "policy_0_mean": 0.2,
+    "policy_0std": 0.282842712474619,
+    "policy_1_mean": 0.4,
+    "policy_1std": 0.3464101615137754,
+    "policy_2_mean": 0.4,
+    "policy_2std": 0.3464101615137754,
+    "policy_3_mean": 0.6,
+    "policy_3std": 0.3464101615137754,
+    "policy_4_mean": 0.8,
+    "policy_4std": 0.28284271247461895,
+    "BT_tol": 1e-05,
+    "n_environments": 300,
+    "n_evaluations": 600,
+    "fraction_consistent": 0.49,
+    "fraction_consistent (comp)": 0.52,
+    "fraction_fully_correct": 0.0,
+    "mean_fraction_correct_decisions": 0.575,
+    "false_positive_rate": 0.0,
+    "hyp_0": [
+        0.2,
+        0.4
+    ],
+    "hyp_1": [
+        0.2,
+        0.4
+    ],
+    "hyp_2": [
+        0.2,
+        0.6
+    ],
+    "hyp_3": [
+        0.2,
+        0.8
+    ],
+    "hyp_4": [
+        0.4,
+        0.4
+    ],
+    "hyp_5": [
+        0.4,
+        0.6
+    ],
+    "hyp_6": [
+        0.4,
+        0.8
+    ],
+    "hyp_7": [
+        0.4,
+        0.6
+    ],
+    "hyp_8": [
+        0.4,
+        0.8
+    ],
+    "hyp_9": [
+        0.6,
+        0.8
+    ],
+    "power_by_hypothesis": [
+        0.39,
+        0.35,
+        0.99,
+        1.0,
+        0.0,
+        0.3,
+        0.98,
+        0.36,
+        1.0,
+        0.38
+    ]
+}

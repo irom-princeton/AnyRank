@@ -1,0 +1,17 @@
+{
+    "n_environments": 500,
+    "n_evaluations": 1000,
+    "n_policies": 5,
+    "n_redraws": 2500,
+    "outcome_variance": 0.05,
+    "policy_0_mean": 0.1,
+    "policy_1_mean": 0.3,
+    "policy_2_mean": 0.30000099999999996,
+    "policy_3_mean": 0.7,
+    "policy_4_mean": 0.9,
+    "BT_tol": 1e-05,
+    "delta": 1e-06,
+    "fraction_consistent": 0.4952,
+    "best_fraction_consistent": 0.5425415038977417,
+    "lb_alpha": 0.45745749610225833
+}

@@ -14,6 +14,8 @@ from PIL import Image as PILImage
 from src.multitest.sequential_graphical import SequentialGraphicalTest
 from src.multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
 import pandas as pd
+from scipy.optimize import minimize_scalar
+from functools import partial
 
 #############################################
 # Parameters
@@ -22,17 +24,50 @@ bernoulli = True
 n_policies = 5
 num_hypotheses = n_policies * (n_policies - 1) // 2
 Nmax = 1020
-n_runs = 400
+n_runs = 200
 n_prior = 20
 alpha = 0.05
 FIGSIZE = (12, 10)
 beta = 0.0  # tuning parameter for alpha allocation in graphical test
 plot_from_saved = False  # set to True to plot from saved data
 run_new_experiment = True  # set to False to plot from saved data
-results_dir = 'outputs/large_scale_graphical_test_results_v7'
-os.makedirs(results_dir, exist_ok=True)
+results_dir = 'outputs/large_scale_graphical_test_results_v25_full_metrics'
+os.makedirs(results_dir, exist_ok=False) # To make sure that we don't overwrite previous outputs
 assert not (plot_from_saved and run_new_experiment), "Cannot both plot from saved and run new experiment"
 assert plot_from_saved or run_new_experiment, "Either plot from saved or run new experiment must be True"
+
+def sprt_growth_rate(p, p0, p1):
+    v00 = (1. - p0) * (1. - p1) / ((1. - p) ** 2)
+    v10 = p0 * (1. - p1) / (p * (1. - p))
+    v01 = (1. - p0) * p1 / (p * (1. - p))
+    v11 = p0 * p1 / (p * p)
+
+    p00 = (1. - p0) * (1. - p1)
+    p10 = p0 * (1. - p1)
+    p01 = (1. - p0) * p1 
+    p11 = p0 * p1 
+
+    return p00*v00 + p10*v10 + p01*v01 + p11*v11
+
+def sprt_variance(p, p0, p1):
+    v00 = (1. - p0) * (1. - p1) / ((1. - p) ** 2)
+    v10 = p0 * (1. - p1) / (p * (1. - p))
+    v01 = (1. - p0) * p1 / (p * (1. - p))
+    v11 = p0 * p1 / (p * p)
+
+    p00 = (1. - p0) * (1. - p1)
+    p10 = p0 * (1. - p1)
+    p01 = (1. - p0) * p1 
+    p11 = p0 * p1 
+
+    mu = p00*v00 + p10*v10 + p01*v01 + p11*v11
+
+    t00 = p00 * ((v00 - mu) ** 2)
+    t10 = p10 * ((v10 - mu) ** 2)
+    t01 = p01 * ((v01 - mu) ** 2)
+    t11 = p11 * ((v11 - mu) ** 2)
+
+    return t00 + t10 + t01 + t11
 
 def get_real_evals():
     """
@@ -140,6 +175,47 @@ def allocate_alpha(diffs: list[float], total_alpha: float = 0.05, beta=1) -> np.
     weights = np.exp(diffs * beta)
     return total_alpha * (weights / weights.sum())
 
+def allocate_alpha_via_savi(diffs: list[float], means: list[list], total_alpha: float = 0.05, beta=1.0) -> np.ndarray:
+    """
+    Allocate a total alpha budget across hypotheses in inverse proportion
+    to their mean differences |mu0 - mu1|.
+
+    Hypotheses with smaller differences receive more alpha (harder to detect).
+
+    Parameters
+    ----------
+    diffs        : list of absolute differences |mu0 - mu1| for each hypothesis
+    total_alpha  : total alpha budget to distribute (default 0.05)
+    beta         : weighting exponent; 0=uniform, >0 favors large diffs, <0 favors small diffs
+
+    Returns
+    -------
+    alphas : np.ndarray of allocated alpha values, one per hypothesis
+    """
+    diffs = np.array(diffs, dtype=float)
+    if np.any(diffs < 0):
+        raise ValueError("All differences must be non-negative.")
+    
+    if total_alpha <= 0 or total_alpha > 1:
+        raise ValueError("total_alpha must be in (0, 1].")
+    
+    growth_rates = np.zeros(diffs.shape)
+    for i in range(growth_rates.shape[0]):
+        mu00, mu10 = means[i]
+        mu0 = np.minimum(mu00, mu10)
+        mu1 = np.maximum(mu00, mu10)
+        tmp_sprt_growth_rate = partial(sprt_growth_rate, p0=mu0, p1=mu1)
+        res = minimize_scalar(tmp_sprt_growth_rate, bounds=(mu0, 1.-1e-10), method='bounded', options={'xatol': 1e-10})
+        optimal_point = res.x
+        mean_growth_rate = sprt_growth_rate(optimal_point, mu0, mu1)
+        variance_growth_rate = sprt_variance(optimal_point, mu0, mu1)
+
+        growth_rates[i] = mean_growth_rate - 0.7 * (variance_growth_rate / 2.)
+    
+    weights = np.exp(growth_rates * beta)
+    alphas = total_alpha * (weights / np.sum(weights))
+    return alphas
+
 def allocate_weights(diffs: list[float], beta=1) -> np.ndarray:
     """
     Allocate edge weights in the graphical test in proportion to the differences |mu0 - mu1|.
@@ -162,6 +238,47 @@ def allocate_weights(diffs: list[float], beta=1) -> np.ndarray:
     weights = np.exp(diffs * beta)
     return weights / weights.sum()
 
+def allocate_weights_via_savi(diffs: list[float], means: list[list], current_gr=2., beta=1.0) -> np.ndarray:
+    """
+    Allocate edge weights in the graphical test in proportion to the differences |mu0 - mu1|.
+
+    Hypotheses with larger differences receive more weight, so that rejecting them frees up
+    more alpha for the remaining hypotheses.
+
+    Parameters
+    ----------
+    diffs : list of absolute differences |mu0 - mu1| for each hypothesis
+    beta  : tuning parameter for weighting; higher beta means more weight on larger differences
+
+    Returns
+    -------
+    weights : np.ndarray of allocated weights, sums to 1
+    """
+    diffs = np.array(diffs, dtype=float)
+
+    if np.any(diffs < 0):
+        raise ValueError("All differences must be non-negative.")
+
+    growth_rates = np.zeros(len(diffs))
+    for i in range(growth_rates.shape[0]):
+        mu00, mu10 = means[i]
+        mu0 = np.minimum(mu00, mu10)
+        mu1 = np.maximum(mu00, mu10)
+        tmp_sprt_growth_rate = partial(sprt_growth_rate, p0=mu0, p1=mu1)
+        res = minimize_scalar(tmp_sprt_growth_rate, bounds=(mu0, 1.-1e-10), method='bounded', options={'xatol': 1e-10})
+        optimal_point = res.x
+        mean_growth_rate = sprt_growth_rate(optimal_point, mu0, mu1)
+        variance_growth_rate = sprt_variance(optimal_point, mu0, mu1)
+
+        growth_rates[i] = mean_growth_rate - 0.7 * (variance_growth_rate / 2.)
+        # Only send weight to harder cases (i.e., lower growth rates) by zeroing out paths to easier cases
+        if growth_rates[i] > current_gr:
+            growth_rates[i] *= 0.
+    
+    weights = np.exp(growth_rates * beta) # Ensure growth_rates[i] = 0. <--> weights[i] = 0.
+    weights *= 1. / np.sum(weights)      # normalize to sum to 1
+    
+    return weights
 
 def animate(graph_axes: list, results_dir: str, Nmax: int, n_prior: int):
     """
@@ -261,7 +378,19 @@ def get_policy_summary(eval_results):
 
 def main():
     make_ranking_impossible = True
+    use_true_means_in_prior = True
+    use_savi_for_allocation = True
+
     policy_true_means = None
+    if n_policies == 3:
+        policy_true_means = np.array([0.1, 0.4, 0.6])
+    elif n_policies == 4:
+        policy_true_means = np.array([0.05, 0.35, 0.55, 0.95])
+    elif n_policies == 5:
+        policy_true_means = np.array([0.2, 0.4, 0.4, 0.6, 0.8])
+    else:
+        pass
+
     ALPHA_AT_REJECTION_SORTED = np.zeros((num_hypotheses, n_runs))
     CORRECT_FULL_RANKING_ALT = []
     CORRECT_PARTIAL_RANKING_NULL = []
@@ -271,6 +400,9 @@ def main():
 
     INCOMPLETE_PARTIAL_RANKING_NULL = []
     INCORRECT_PARTIAL_RANKING_NULL = []
+
+    HYP_VS_TIME = np.zeros((n_runs, 1 + int(Nmax - n_prior)*int(n_policies)))
+
     #####################################################
     # Looping over multiple runs to generate policy data
     #####################################################
@@ -306,9 +438,15 @@ def main():
 
         policy_data = policy_data.T  # shape (Nmax - n_prior, n_policies)
 
-        sim_means = [np.mean(prior_evals[k]) for k in policies]
+        if use_true_means_in_prior:
+            sim_means = copy.deepcopy(policy_true_means)
+        else:
+            sim_means = [np.mean(prior_evals[k]) for k in policies]
+        
         policy_index = {i: policies[i] for i in range(n_policies)}
-        real_means = [np.mean(real_evals[k]) for k in policies]
+        real_means = copy.deepcopy(policy_true_means)
+
+        empirical_real_means = [np.mean(real_evals[k]) for k in policies]
         real_sim_means = [(real_means[i], sim_means[i]) for i in range(n_policies)]
         
         null_hypotheses = [
@@ -345,17 +483,40 @@ def main():
             for key, neighbors in successor_neighbors.items():
                 f.write(f"{key}: {neighbors}\n")
 
+        savi_diffs = []
+        savi_means = []
+        savi_growth_rates = []
+        for hyp in null_hypotheses:
+            mu0 = hyp[0]
+            mu1 = hyp[1]
+            savi_diffs.append(abs(mu1 - mu0))
+            savi_means.append((mu0, mu1))
+            tmp_sprt_growth_rate = partial(sprt_growth_rate, p0=mu0, p1=mu1)
+            res = minimize_scalar(tmp_sprt_growth_rate, bounds=(mu0, 1.-1e-10), method='bounded', options={'xatol': 1e-10})
+            optimal_point = res.x
+            mean_growth_rate = sprt_growth_rate(optimal_point, mu0, mu1)
+            variance_growth_rate = sprt_variance(optimal_point, mu0, mu1)
+            savi_growth_rates.append(mean_growth_rate - 0.7 * (variance_growth_rate / 2.))
+        
         # print("Ordered policy pairs (by time to decision on null hypothesis mu0 < mu1): ")
         hyp_diffs = [abs(mu1 - mu0) for (mu0, mu1) in null_hypotheses]
 
-        alpha_per_hypothesis = allocate_alpha(hyp_diffs, alpha, beta=beta)
-        alpha_per_hypothesis_weighted_bonferroni = allocate_alpha(hyp_diffs, alpha, beta=-beta)
+        if use_savi_for_allocation:
+            alpha_per_hypothesis = allocate_alpha_via_savi(savi_diffs, savi_means, alpha, beta=beta)
+            alpha_per_hypothesis_weighted_bonferroni = allocate_alpha_via_savi(savi_diffs, savi_means, alpha, beta=-beta)
+        else:
+            alpha_per_hypothesis = allocate_alpha(hyp_diffs, alpha, beta=beta)
+            alpha_per_hypothesis_weighted_bonferroni = allocate_alpha(hyp_diffs, alpha, beta=-beta)
 
         weighted_G = np.zeros((num_hypotheses, num_hypotheses))
         for k1, hyp1 in enumerate(null_hypotheses):
             neighboring_hypotheses = [neighbor[1] for neighbor in successor_neighbors[(k1, hyp1)]]
             neighbor_diffs = [abs(mu1 - mu0) for (mu0, mu1) in neighboring_hypotheses]
-            weights_hyp1 = allocate_weights(neighbor_diffs, beta=beta)
+            if use_savi_for_allocation:
+                weights_hyp1 = allocate_weights_via_savi(neighbor_diffs, savi_means, current_gr=savi_growth_rates[k1], beta=beta)
+            else:
+                weights_hyp1 = allocate_weights(neighbor_diffs, beta=beta)
+            
             for idx, (k2, _) in enumerate(successor_neighbors[(k1, hyp1)]):
                 weighted_G[k1, k2] = weights_hyp1[idx]
 
@@ -383,14 +544,15 @@ def main():
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
-        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, hypothesis_decisions = (
+        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, hypothesis_decisions, hyp_vs_time = (
             graphical_test.sequential_graphical_multitest(
-                null_hypotheses_policy_indices, policy_data, Nmax,
+                null_hypotheses_policy_indices, policy_data, Nmax-n_prior,
                 alpha_per_hypothesis=alpha_per_hypothesis,
                 weighted_G=weighted_G, verbose=False,
             )
         )
 
+        HYP_VS_TIME[run, :] = copy.deepcopy(hyp_vs_time)
         # print()
         # print(correct_hypothesis_signs)
         # print(hypothesis_decisions)
@@ -685,6 +847,25 @@ def main():
     print("Proportion of erroneous rankings [TYPE-I ERROR]: ")
     print(f"{proportion_with_actively_erroneous_decisions:0.3f}")
     print("------------------------")
+
+    np.save(f'{results_dir}/hyp_vs_time_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', HYP_VS_TIME)
+
+    fraction_complete_rankings_vs_time = np.zeros(HYP_VS_TIME.shape[1])
+    for ii in range(HYP_VS_TIME.shape[1]):
+        tmp = np.where(np.isclose(HYP_VS_TIME[:, ii], 1.0), np.ones(HYP_VS_TIME.shape[0]), np.zeros(HYP_VS_TIME.shape[0]))
+        fraction_complete_rankings_vs_time[ii] = np.mean(tmp)
+
+    np.save(f'{results_dir}/complete_ranking_vs_time_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', fraction_complete_rankings_vs_time)
+    
+    key_idx = np.arange(0, HYP_VS_TIME.shape[1], 50)
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.plot(key_idx, np.mean(HYP_VS_TIME, axis=0)[key_idx], 'k')
+    fig.savefig(f'{results_dir}/hyp_vs_time_plot_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png')
+
+    fig2, ax2 = plt.subplots(figsize=(12, 8))
+    ax2.plot(key_idx, fraction_complete_rankings_vs_time[key_idx], 'k')
+    fig2.savefig(f'{results_dir}/complete_ranking_vs_time_plot_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png')
 
     #############################################
     # Plotting exchange matrices as heatmaps

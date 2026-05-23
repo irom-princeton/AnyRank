@@ -333,6 +333,7 @@ class SequentialGraphicalTest:
         rejected_hypotheses = []
         decision_times = {}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
+        num_policies = policy_data.shape[1]
         policy_evals = {i: [] for i in range(policy_data.shape[1])}
         print(f"Running means: ", np.mean(policy_data, axis=0), "\n")
 
@@ -375,7 +376,9 @@ class SequentialGraphicalTest:
 
         KK = np.zeros(num_hypotheses)
         # Active sampling scheme
-        iters = 0
+        iters = int(0)
+        Tmax = num_policies * Nmax + 1
+        hyp_completed_vs_time = np.zeros(Tmax)
         while np.min(hypotheses_completed) <= 0.5:
             # Get all rejected indices
             all_rejected = [i for i in range(num_hypotheses) if i in rejected]
@@ -485,6 +488,8 @@ class SequentialGraphicalTest:
                     KK[i] += 1
             
             iters+=1
+            hyp_completed_vs_time[iters] = np.mean(hypotheses_completed)
+
             candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p_values[i] <= self.alpha[i]]
             if verbose:
                 print(f"At time {k}, p-values: {p_values}, alpha: {self.alpha}, candidates for rejection: {candidates}")
@@ -510,7 +515,9 @@ class SequentialGraphicalTest:
                         nsm_test = tests[i]
                         nsm_test.set_alpha(self.alpha[i])
         
-        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct                
+        hyp_completed_vs_time[iters+1:] +=  hyp_completed_vs_time[iters]
+
+        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct, hyp_completed_vs_time                
                         
         
         # for k in range(len(policy_data)): # sequentially go through data points
