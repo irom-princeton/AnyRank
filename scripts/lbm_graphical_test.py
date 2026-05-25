@@ -1,0 +1,168 @@
+import numpy as np
+import os
+import copy
+import tqdm
+import tempfile
+import matplotlib.pyplot as plt
+from PIL import Image as PILImage
+from multitest.sequential_graphical import SequentialGraphicalTest
+from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
+import pandas as pd
+import ast
+from multitest.run_graphical_test import ExperimentConfig, main
+
+########################################
+#### Data Loading and Preprocessing ####
+########################################
+
+SMALL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_data_small/LBM_DATA"
+FULL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_large/full_data"
+
+def load_small_data():
+    subfolders = [f for f in os.listdir(SMALL_DATA_DIR) if os.path.isdir(os.path.join(SMALL_DATA_DIR, f))]
+    data = {}
+    means = {}
+    for subfolder in subfolders:
+        data[subfolder] = {}
+        subfolder_path = os.path.join(SMALL_DATA_DIR, subfolder)
+        for file in os.listdir(subfolder_path):
+            exp_name = file.split(".")[0]
+            file_path = os.path.join(subfolder_path, file)
+            exp_data = np.load(file_path, allow_pickle=True)
+            data[exp_name] = exp_data
+            means[exp_name] = np.mean(exp_data)
+    return data, means
+
+
+def load_full_data(data_file):
+    df = pd.read_csv(data_file)
+    return df
+
+def load_evals(df, panel, task, method, filename=None):
+    evals = df[
+        (df["Panel"] == panel)
+        & (df["Task"] == task)
+        & (df["Method"] == method)
+    ]
+    trials = ast.literal_eval(evals["Success/Failure"].iloc[0])
+    # convert bool to int
+    trials = np.array(trials).astype(int)
+    success_rate = np.mean(trials)
+    tri_rank = evals["CLD_Letter"].iloc[0]
+    return trials, success_rate, tri_rank
+
+def experiment_A():
+    # In distribution data 
+    # Policies: Single task, LBM finetuned, LBM zeroshot
+    # Task: PutKiwiInCenterOfTable
+    # Panel: Fig2A_HW_Seen_Nominal
+    hw_panel = "Fig2A_HW_Seen_Nominal"
+    sim_panel = "Fig2A_Sim_Seen_Nominal"   
+    
+    tasks = ["PushCoasterToMug"]
+    policies = ["Single Task", "LBM finetuned", "LBM zeroshot"]
+    sim_means = {}
+    real_means = {}
+
+    policy_data = {}
+    for policy in policies:
+        trials, success_rate, tri_rank = load_evals(df, hw_panel, tasks[0], policy)
+        policy_data[policy] = trials
+        real_means[policy] = success_rate
+        sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, tasks[0], policy)
+        sim_means[policy] = sim_success_rate
+    return policy_data, real_means, sim_means
+
+def experiment_C(id=True, ood=False):
+    # In distribution data 
+    # Policies: Single task, LBM finetuned, LBM zeroshot
+    # Task: PutKiwiInCenterOfTable
+    # Panel: Fig2A_HW_Seen_Nominal
+    if id and not ood:
+        hw_panels = ["Fig2A_HW_Seen_Nominal"]
+        sim_panels = ["Fig2A_Sim_Seen_Nominal"] 
+    elif not id and ood:
+        hw_panels = ["Fig2B_HW_Seen_DistShift"]
+        sim_panels = ["Fig2B_Sim_Seen_DistShift"]
+    elif id and ood:
+        hw_panels = ["Fig2A_HW_Seen_Nominal", "Fig2B_HW_Seen_DistShift"]
+        sim_panels = ["Fig2A_Sim_Seen_Nominal", "Fig2B_Sim_Seen_DistShift"]  
+    
+    hw_tasks = ["Aggregate - Hardware"]
+    dist_shift_hw_tasks = ["Aggregate - Distribution shift"]
+    station_hw_tasks = ["Aggregate - Novel station"]
+    sim_tasks = ["Aggregate - Simulation"]
+    base_policies = ["Single Task", "LBM finetuned", "LBM zeroshot"]
+    sim_means = {}
+    real_means = {}
+
+    policy_data = {}
+    for base_policy in base_policies:
+        for hw_panel, sim_panel in zip(hw_panels, sim_panels):
+            policy = f"{base_policy} ({hw_panel.split('_')[3]})"
+            trials, success_rate, tri_rank = load_evals(df, hw_panel, hw_tasks[0], base_policy)
+            policy_data[policy] = trials
+            real_means[policy] = success_rate
+            sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, sim_tasks[0], base_policy)
+            sim_means[policy] = sim_success_rate
+            breakpoint()
+    return policy_data, real_means, sim_means
+
+def experiment_B(id = True, ood=False):
+    # In distribution data 
+    # Policies: Single task, LBM finetuned, LBM zeroshot
+    # Task: TurnMugRightSideUp
+    # Panel: Fig2A_HW_Seen_Nominal
+    if id and not ood:
+        hw_panels = ["Fig2A_HW_Seen_Nominal"]
+        sim_panels = ["Fig2A_Sim_Seen_Nominal"] 
+    elif not id and ood:
+        hw_panels = ["Fig2B_HW_Seen_DistShift"]
+        sim_panels = ["Fig2B_Sim_Seen_DistShift"]
+    elif id and ood:
+        hw_panels = ["Fig2A_HW_Seen_Nominal", "Fig2B_HW_Seen_DistShift"]
+        sim_panels = ["Fig2A_Sim_Seen_Nominal", "Fig2B_Sim_Seen_DistShift"]
+
+    tasks = ["TurnMugRightsideUp"]
+    base_policies = ["Single Task", "LBM finetuned", "LBM zeroshot"]
+    
+
+    sim_means = {}
+    real_means = {}
+    policy_data = {}
+
+    for base_policy in base_policies:
+        for hw_panel, sim_panel in zip(hw_panels, sim_panels):
+            policy = f"{base_policy} ({hw_panel.split('_')[3]})"
+            trials, success_rate, tri_rank = load_evals(df, hw_panel, tasks[0], base_policy)
+            policy_data[policy] = trials
+            real_means[policy] = success_rate
+            sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, tasks[0], base_policy)
+            sim_means[policy] = sim_success_rate
+    return policy_data, real_means, sim_means
+
+def run_graphical_experiment_A():
+    policy_data, real_means, sim_means = experiment_A()
+    cfg = ExperimentConfig(alpha=0.1, beta=1, results_dir='outputs/lbm_graphical_test/experiment_A')
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
+
+def run_graphical_experiment_B(id=True, ood=False):
+    policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
+    cfg = ExperimentConfig(alpha=0.1, beta=1, results_dir='outputs/lbm_graphical_test/experiment_B_id_{}_ood_{}'.format(id, ood))
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
+
+def run_graphical_experiment_C(id=True, ood=False):
+    policy_data, real_means, sim_means = experiment_C(id=id, ood=ood)
+    cfg = ExperimentConfig(alpha=0.1, beta=25, results_dir='outputs/lbm_graphical_test/experiment_C_id_{}_ood_{}'.format(id, ood))
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
+
+    
+if __name__ == "__main__":
+    # small_data, small_means = load_small_data()
+    full_data_csv = os.path.join(FULL_DATA_DIR, "Fig2.csv")
+    df = load_full_data(full_data_csv)
+    trials, success_rate, tri_rank = load_evals(df, "Fig2A_HW_Seen_Nominal", "PutKiwiInCenterOfTable", "Single Task")
+    policy_data, real_means, sim_means = experiment_A()
+    # run_graphical_experiment_A()
+    run_graphical_experiment_C(id=True, ood=True)
+    

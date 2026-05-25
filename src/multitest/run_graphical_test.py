@@ -15,8 +15,9 @@ from dataclasses import dataclass, asdict
 from PIL import Image as PILImage
 from multitest.sequential_graphical import SequentialGraphicalTest
 from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
+from multitest.sequential_graphical_evalue_active import SequentialGraphicalTest as EActiveSequentialGraphicalTest
+from multitest.sequential_graphical_active import SequentialGraphicalTest as ASequentialGraphicalTest
 import pandas as pd
-
 
 #############################################
 # Hyperparameters
@@ -61,32 +62,44 @@ def get_real_evals(data_bins=["data1"], selected_policies=[]):
             eval_results[k] = np.concatenate([eval_results[k], df[k].dropna().to_numpy()])
     return eval_results
 
-def get_ranking_from_rejections(rejected_hypotheses, rejected_hypotheses_indices, null_hypotheses, policy_index):
+def get_partial_ranking(rejected_hypotheses, null_hypotheses_policy_indices, n_policies):
     """
-    Derive a ranking of policies based on which null hypotheses were rejected.
-    Null hypothesis is mu0 <= mu1, so if it is rejected, it means mu1 > mu0, so policy 1 is better than policy 0.
+    Derive a partial ranking from rejected pairwise hypotheses.
+
+    Rejecting hypothesis (p0, p1) establishes p1 > p0 with statistical confidence.
+    Pairs that were tested but not rejected are incomparable — no ordering is claimed.
+
+    The ranking is a linear extension of the confirmed partial order, using net score
+    (wins - losses) as the primary key and raw wins as a tiebreaker. This respects
+    confirmed dominance relationships while leaving incomparable pairs explicitly flagged
+    rather than silently assigning an arbitrary order between them.
 
     Parameters
     ----------
-    rejected_hypotheses : list of indices into null_hypotheses that were rejected
-    rejected_hypotheses_indices : list of indices into null_hypotheses that were rejected
-    null_hypotheses     : list of tuples (mu0, mu1) for all null hypotheses
-    policy_index        : dict mapping policy index to (real_mean, sim_mean)
+    rejected_hypotheses            : list of (p0, p1) pairs that were rejected;
+                                     each rejection means policy p1 > policy p0 (confirmed)
+    null_hypotheses_policy_indices : full ordered list of all tested (p0, p1) pairs
+    n_policies                     : total number of policies
 
     Returns
     -------
-    policy_ranking : list of policy indices ranked from best to worst based on rejections
-    wins           : dict of win counts per policy
+    ranking      : policy indices sorted best-to-worst by net score (wins - losses),
+                   tiebroken by raw wins
+    wins         : dict {policy_idx: number of confirmed wins}
+    losses       : dict {policy_idx: number of confirmed losses}
+    incomparable : list of tested (p0, p1) pairs for which no ordering was established
     """
-    n_policies = len(policy_index)
-    rejected_hypotheses_pairs = [null_hypotheses[k] for k in rejected_hypotheses_indices]
-    print("Rejected hypothesis (mu0, mu1): ", rejected_hypotheses_pairs)
     wins = {i: 0 for i in range(n_policies)}
-    for p0_index, p1_index in rejected_hypotheses:
-        if p0_index is not None and p1_index is not None:
-            wins[p1_index] += 1
-    policy_ranking = sorted(wins.keys(), key=lambda x: wins[x], reverse=True)
-    return policy_ranking, wins
+    losses = {i: 0 for i in range(n_policies)}
+    rejected_set = set(map(tuple, rejected_hypotheses))
+    for p0, p1 in rejected_hypotheses:
+        wins[p1] += 1
+        losses[p0] += 1
+    incomparable = [pair for pair in null_hypotheses_policy_indices if tuple(pair) not in rejected_set]
+    ranking = sorted(range(n_policies),
+                     key=lambda x: (wins[x] - losses[x], wins[x]),
+                     reverse=True)
+    return ranking, wins, losses, incomparable
 
 
 def allocate_alpha(diffs: list[float], total_alpha: float = 0.05, beta=1) -> np.ndarray:
@@ -254,7 +267,7 @@ def plot_heatmap(matrix, title, save_path, real_sim_means, fmt='.2f', figsize=(1
             norm_val = (val - vmin) / (vmax - vmin) if vmax != vmin else 0.5
             text_color = 'white' if norm_val < 0.5 else 'black'
             ax.text(j, i, f'{val:{fmt}}', ha='center', va='center',
-                    color=text_color, fontsize=int(min(figsize)))
+                    color=text_color, fontsize=int(2*min(figsize)))
 
     fig.colorbar(cax)
     ax.set_xlabel('mu0')
@@ -268,12 +281,16 @@ def plot_heatmap(matrix, title, save_path, real_sim_means, fmt='.2f', figsize=(1
     plt.close()
 
 
-def _accumulate_samples(samples_dict, run, decision_times):
+def _accumulate_samples(samples_dict, run, decision_times, Nmax, procedure="graphical"):
     for hyp, ttd in decision_times.items():
+        if procedure == "fixed_sequence" and ttd == "N/A":
+            ttd = 0
+        else:
+            ttd = Nmax if ttd == "N/A" else ttd
+
         pi1, pi2 = hyp
         samples_dict[run][pi1] = max(ttd, samples_dict[run].get(pi1, 0))
         samples_dict[run][pi2] = max(ttd, samples_dict[run].get(pi2, 0))
-
 
 def _average_dict(d, n):
     for key in d:
@@ -331,17 +348,23 @@ def run_experiments(
     #####################################################
     avg_ttd = {}
     avg_ttd_evalues = {}
+    avg_ttd_evalues_active = {}
+    avg_ttd_active = {}
     avg_ttd_bonferroni = {}
     avg_ttd_weighted_bonferroni = {}
     avg_ttd_fixed = {}
     samples = {k: {} for k in range(n_runs)}
     samples_evalues = {k: {} for k in range(n_runs)}
+    samples_evalues_active = {k: {} for k in range(n_runs)}
+    samples_active = {k: {} for k in range(n_runs)}
     samples_fixed = {k: {} for k in range(n_runs)}
     samples_bonferroni = {k: {} for k in range(n_runs)}
     samples_weighted_bonferroni = {k: {} for k in range(n_runs)}
     n_rejected_per_run = {
         'graphical': [],
         'evalues': [],
+        'evalues_active': [],
+        'graphical_active': [],
         'bonferroni': [],
         'weighted_bonferroni': [],
         'fixed': [],
@@ -358,6 +381,7 @@ def run_experiments(
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
+        
         rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, hypotheses_correct = (
             graphical_test.sequential_graphical_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
@@ -366,10 +390,10 @@ def run_experiments(
             )
         )
 
-        _accumulate_samples(samples, run, decision_times)
+        _accumulate_samples(samples, run, decision_times, Nmax, procedure="p-graphical")
         animate(graphs_over_time, results_dir, Nmax, n_prior)
         for key, value in decision_times.items():
-            avg_ttd[key] = avg_ttd.get(key, 0) + value
+            avg_ttd[key] = avg_ttd.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
         print("Decision times: ", decision_times, "\n")
         n_rejected_per_run['graphical'].append(len(rejected_hypotheses))
@@ -381,29 +405,73 @@ def run_experiments(
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
-        rejected_hypotheses_evalues, _, decision_times_evalues, _, _, graphs_over_time_evalues = (
+        rejected_hypotheses_evalues, _, decision_times_evalues, _, _, graphs_over_time_evalues, _ = (
             egraphical_test.sequential_graphical_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
                 alpha_per_hypothesis=alpha_per_hypothesis,
                 weighted_G=weighted_G, verbose=True,
             )
         )
-        _accumulate_samples(samples_evalues, run, decision_times_evalues)
+        _accumulate_samples(samples_evalues, run, decision_times_evalues, Nmax, procedure="evalues")
         animate(graphs_over_time_evalues, results_dir, Nmax, n_prior)
         for key, value in decision_times_evalues.items():
-            avg_ttd_evalues[key] = avg_ttd_evalues.get(key, 0) + value
+            avg_ttd_evalues[key] = avg_ttd_evalues.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues)
         print("Decision times: ", decision_times_evalues, "\n")
         n_rejected_per_run['evalues'].append(len(rejected_hypotheses_evalues))
+
+        # E-value active graphical multitest
+        print("Running e-value active graphical multitest...")
+        egraphical_active_test = EActiveSequentialGraphicalTest(
+            num_policies=n_policies,
+            null_hypotheses=null_hypotheses_policy_indices,
+            total_alpha=alpha,
+        )
+        rejected_hypotheses_evalues_active, _, decision_times_evalues_active, _, _, graphs_over_time_evalues_active, _, _ = (
+            egraphical_active_test.sequential_graphical_multitest(
+                null_hypotheses_policy_indices, policy_data, Nmax,
+                alpha_per_hypothesis=alpha_per_hypothesis,
+                weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,
+            )
+        )
+        _accumulate_samples(samples_evalues_active, run, decision_times_evalues_active, Nmax, procedure="evalues_active")
+        animate(graphs_over_time_evalues_active, results_dir, Nmax, n_prior)
+        for key, value in decision_times_evalues_active.items():
+            avg_ttd_evalues_active[key] = avg_ttd_evalues_active.get(key, 0) + (Nmax if value == "N/A" else value)
+        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues_active)
+        print("Decision times: ", decision_times_evalues_active, "\n")
+        n_rejected_per_run['evalues_active'].append(len(rejected_hypotheses_evalues_active))
+
+        # Active graphical multitest (p-value, active sampling)
+        print("Running active graphical multitest (p-value)...")
+        agraphical_test = ASequentialGraphicalTest(
+            num_policies=n_policies,
+            null_hypotheses=null_hypotheses_policy_indices,
+            total_alpha=alpha,
+        )
+        rejected_hypotheses_active, _, decision_times_active, _, _, graphs_over_time_active, _, _ = (
+            agraphical_test.sequential_graphical_multitest(
+                null_hypotheses_policy_indices, policy_data, Nmax,
+                alpha_per_hypothesis=alpha_per_hypothesis,
+                weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,
+            )
+        )
+        _accumulate_samples(samples_active, run, decision_times_active, Nmax, procedure="graphical_active")
+        animate(graphs_over_time_active, results_dir, Nmax, n_prior)
+        for key, value in decision_times_active.items():
+            avg_ttd_active[key] = avg_ttd_active.get(key, 0) + (Nmax if value == "N/A" else value)
+        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_active)
+        print("Decision times: ", decision_times_active, "\n")
+        n_rejected_per_run['graphical_active'].append(len(rejected_hypotheses_active))
 
         # Bonferroni
         print("Running Bonferroni corrected individual tests for comparison...")
         rejected_hypotheses_bonferroni, decision_times_bonferroni = graphical_test.bonferroni_multitest(
             null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
         )
-        _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni)
+        _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni, Nmax, procedure="bonferroni")
         for key, value in decision_times_bonferroni.items():
-            avg_ttd_bonferroni[key] = avg_ttd_bonferroni.get(key, 0) + value
+            avg_ttd_bonferroni[key] = avg_ttd_bonferroni.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_bonferroni)
         print("Decision times: ", decision_times_bonferroni, "\n")
         n_rejected_per_run['bonferroni'].append(len(rejected_hypotheses_bonferroni))
@@ -416,9 +484,9 @@ def run_experiments(
                 alpha_per_hypothesis_weighted_bonferroni, bernoulli=bernoulli
             )
         )
-        _accumulate_samples(samples_weighted_bonferroni, run, decision_times_weighted_bonferroni)
+        _accumulate_samples(samples_weighted_bonferroni, run, decision_times_weighted_bonferroni, Nmax, procedure="weighted_bonferroni")
         for key, value in decision_times_weighted_bonferroni.items():
-            avg_ttd_weighted_bonferroni[key] = avg_ttd_weighted_bonferroni.get(key, 0) + value
+            avg_ttd_weighted_bonferroni[key] = avg_ttd_weighted_bonferroni.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_weighted_bonferroni)
         print("Decision times: ", decision_times_weighted_bonferroni, "\n")
         n_rejected_per_run['weighted_bonferroni'].append(len(rejected_hypotheses_weighted_bonferroni))
@@ -428,27 +496,13 @@ def run_experiments(
         rejected_hypotheses_fixed, decision_times_fixed = graphical_test.fixed_multitest(
             null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
         )
-        _accumulate_samples(samples_fixed, run, decision_times_fixed)
+        _accumulate_samples(samples_fixed, run, decision_times_fixed, Nmax, procedure="fixed_sequence")
         for key, value in decision_times_fixed.items():
-            avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + value
+            avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + (0 if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_fixed)
         print("Decision times: ", decision_times_fixed, "\n")
         n_rejected_per_run['fixed'].append(len(rejected_hypotheses_fixed))
 
-    policy_ranking, wins = get_ranking_from_rejections(
-        rejected_hypotheses, rejected_hypotheses_indices, null_hypotheses, policy_index
-    )
-    print("Policy ranking based on graphical multitest rejections: ", policy_ranking)
-
-    rejected_hypotheses_bonferroni_indices = [
-        null_hypotheses.index((policy_index[p0][1], policy_index[p1][1]))
-        for (p0, p1) in rejected_hypotheses_bonferroni
-        if (policy_index[p0][1], policy_index[p1][1]) in null_hypotheses
-    ]
-    policy_ranking_bonferroni, wins_bonferroni = get_ranking_from_rejections(
-        rejected_hypotheses_bonferroni, rejected_hypotheses_bonferroni_indices, null_hypotheses, policy_index
-    )
-    print("Policy ranking based on Bonferroni corrected test rejections: ", policy_ranking_bonferroni)
     with open(f'{results_dir}/empirical_real_means_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
         f.write("Real-sim pairs: \n")
         for real_mean, sim_mean in real_sim_means:
@@ -456,18 +510,53 @@ def run_experiments(
         f.write("==============================\n")
         f.write("Empirical real means: " + str(np.nanmean(policy_data, axis=0)) + "\n")
         f.write("True real means: " + str([rs[0] for rs in real_sim_means]) + "\n")
-        f.write("==============================\n")
-        f.write("Policy ranking based on graphical multitest rejections: " + str(policy_ranking) + "\n")
-        print("Policy ranking based on: ")
-        for key, value in wins.items():
-            f.write(f"{key}: {value}\n")
-        f.write("Policy ranking based on Bonferroni corrected test rejections: " + str(policy_ranking_bonferroni) + "\n")
-        print("Policy ranking based on: ")
-        for key, value in wins_bonferroni.items():
-            f.write(f"{key}: {value}\n")
+
+    # Compute and store partial rankings for all methods.
+    # Each rejected (p0, p1) confirms p1 > p0; un-rejected pairs are incomparable.
+    # Ranking key: net score = wins - losses (tiebroken by raw wins).
+    def _write_ranking(label, rejected_hyps, f):
+        ranking, wins, losses, incomparable = get_partial_ranking(
+            rejected_hyps, null_hypotheses_policy_indices, n_policies
+        )
+        n_total = len(null_hypotheses_policy_indices)
+        n_confirmed = n_total - len(incomparable)
+        ranked_names = [policy_index[i] for i in ranking]
+        print(f"\n{label}:")
+        print(f"  Ranking (best->worst): {ranked_names}")
+        print(f"  Confirmed orderings: {n_confirmed}/{n_total}  "
+              f"({'complete' if not incomparable else f'{len(incomparable)} incomparable pairs'})")
+        for i in ranking:
+            print(f"    {policy_index[i]}: wins={wins[i]}, losses={losses[i]}, net={wins[i]-losses[i]}")
+        f.write(f"\n{'='*60}\n{label}\n{'='*60}\n")
+        f.write(f"Ranking (best->worst): {ranked_names}\n")
+        f.write(f"Confirmed orderings: {n_confirmed}/{n_total}\n")
+        for i in ranking:
+            f.write(f"  {policy_index[i]}: wins={wins[i]}, losses={losses[i]}, net={wins[i]-losses[i]}\n")
+        if incomparable:
+            f.write(f"Incomparable pairs ({len(incomparable)}):\n")
+            for p0, p1 in incomparable:
+                f.write(f"  ({policy_index[p0]}, {policy_index[p1]}) — no confirmed ordering\n")
+        else:
+            f.write("Complete ranking: all pairwise orderings confirmed.\n")
+
+    ranking_path = f'{results_dir}/policy_rankings_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt'
+    print(f"\n{'='*60}\nPolicy Rankings\n{'='*60}")
+    with open(ranking_path, 'w') as f:
+        f.write(f"Policy Rankings — N={Nmax}, n={n_prior}, alpha={alpha}, beta={beta}\n")
+        f.write(f"Policies: {[policy_index[i] for i in range(n_policies)]}\n")
+        _write_ranking("Graphical (p-value, passive)",      rejected_hypotheses,                   f)
+        _write_ranking("E-value (passive)",                  rejected_hypotheses_evalues,           f)
+        _write_ranking("E-value (active)",                   rejected_hypotheses_evalues_active,    f)
+        _write_ranking("Active graphical (p-value)",         rejected_hypotheses_active,            f)
+        _write_ranking("Bonferroni",                         rejected_hypotheses_bonferroni,        f)
+        _write_ranking("Weighted Bonferroni",                rejected_hypotheses_weighted_bonferroni, f)
+        _write_ranking("Fixed sequence",                     rejected_hypotheses_fixed,             f)
+    print(f"\nPolicy rankings written to {ranking_path}")
 
     _average_dict(avg_ttd, n_runs)
     _average_dict(avg_ttd_evalues, n_runs)
+    _average_dict(avg_ttd_evalues_active, n_runs)
+    _average_dict(avg_ttd_active, n_runs)
     _average_dict(avg_ttd_bonferroni, n_runs)
     _average_dict(avg_ttd_fixed, n_runs)
     _average_dict(avg_ttd_weighted_bonferroni, n_runs)
@@ -476,10 +565,20 @@ def run_experiments(
         for i in range(n_policies):
             g = np.mean([samples[run].get(i, 0) for run in range(n_runs)])
             eg = np.mean([samples_evalues[run].get(i, 0) for run in range(n_runs)])
+            eg_active = np.mean([samples_evalues_active[run].get(i, 0) for run in range(n_runs)])
+            ag = np.mean([samples_active[run].get(i, 0) for run in range(n_runs)])
             b = np.mean([samples_bonferroni[run].get(i, 0) for run in range(n_runs)])
             fx = np.mean([samples_fixed[run].get(i, 0) for run in range(n_runs)])
             wb = np.mean([samples_weighted_bonferroni[run].get(i, 0) for run in range(n_runs)])
-            f.write(f"Policy {i}: Graphical={g:.2f}, EGraphical={eg:.2f}, Bonferroni={b:.2f}, Fixed={fx:.2f}, Weighted_Bonferroni={wb:.2f}\n")
+            f.write(f"Policy {i}: Graphical={g:.2f}, EGraphical={eg:.2f}, EGraphicalActive={eg_active:.2f}, GraphicalActive={ag:.2f}, Bonferroni={b:.2f}, Fixed={fx:.2f}, Weighted_Bonferroni={wb:.2f}\n")
+
+    n_hypotheses = len(null_hypotheses_policy_indices)
+    with open(f'{results_dir}/rejection_counts_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
+        f.write(f"Total hypotheses: {n_hypotheses}\n")
+        f.write("==============================\n")
+        for method, counts in n_rejected_per_run.items():
+            mean_rejected = np.mean(counts)
+            f.write(f"{method}: mean={mean_rejected:.2f} / {n_hypotheses}, per_run={counts}\n")
 
     #############################################
     # Summarizing results
@@ -509,12 +608,16 @@ def run_experiments(
 
     exchange_matrix_graphical = _fill_exchange_matrix(avg_ttd, n_policies)
     exchange_matrix_evalues = _fill_exchange_matrix(avg_ttd_evalues, n_policies)
+    exchange_matrix_evalues_active = _fill_exchange_matrix(avg_ttd_evalues_active, n_policies)
+    exchange_matrix_active = _fill_exchange_matrix(avg_ttd_active, n_policies)
     exchange_matrix_bonferroni = _fill_exchange_matrix(avg_ttd_bonferroni, n_policies)
     exchange_matrix_fixed = _fill_exchange_matrix(avg_ttd_fixed, n_policies)
     exchange_matrix_weighted_bonferroni = _fill_exchange_matrix(avg_ttd_weighted_bonferroni, n_policies)
 
     true_sample_complexity_fs = 0.
     true_sample_complexity_evalues = 0.
+    true_sample_complexity_evalues_active = 0.
+    true_sample_complexity_active = 0.
     true_sample_complexity_bonferroni = 0.
     true_sample_complexity_weighted_bonferroni = 0.
     true_sample_complexity_fixed = 0.
@@ -522,10 +625,11 @@ def run_experiments(
     for i in range(n_policies):
         true_sample_complexity_fs += np.maximum(np.max(exchange_matrix_graphical[:, i]), np.max(exchange_matrix_graphical[n_policies-i-1, :]))
         true_sample_complexity_evalues += np.maximum(np.max(exchange_matrix_evalues[:, i]), np.max(exchange_matrix_evalues[n_policies-i-1, :]))
+        true_sample_complexity_evalues_active += np.maximum(np.max(exchange_matrix_evalues_active[:, i]), np.max(exchange_matrix_evalues_active[n_policies-i-1, :]))
+        true_sample_complexity_active += np.maximum(np.max(exchange_matrix_active[:, i]), np.max(exchange_matrix_active[n_policies-i-1, :]))
         true_sample_complexity_bonferroni += np.maximum(np.max(exchange_matrix_bonferroni[:, i]), np.max(exchange_matrix_bonferroni[n_policies-i-1, :]))
         true_sample_complexity_weighted_bonferroni += np.maximum(np.max(exchange_matrix_weighted_bonferroni[:, i]), np.max(exchange_matrix_weighted_bonferroni[n_policies-i-1, :]))
         true_sample_complexity_fixed += np.maximum(np.max(exchange_matrix_fixed[:, i]), np.max(exchange_matrix_fixed[n_policies-i-1, :]))
-
 
     for (p0_index, p1_index), ttd in avg_ttd.items():
         print(f"Policy pair ({p0_index}, {p1_index}): FST TTD = {ttd}, Bonferroni TTD = {avg_ttd_bonferroni.get((p0_index, p1_index), Nmax)}")
@@ -546,6 +650,8 @@ def run_experiments(
     np.save(f'{results_dir}/graphical_multitest_exchange_matrix_saved_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_saved)
     np.save(f'{results_dir}/fixed_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_fixed)
     np.save(f'{results_dir}/evalues_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_evalues)
+    np.save(f'{results_dir}/evalues_active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_evalues_active)
+    np.save(f'{results_dir}/active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_active)
 
     if plot_from_saved:
         exchange_matrix_saved = np.load(f'{results_dir}/graphical_multitest_exchange_matrix_saved_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
@@ -554,6 +660,8 @@ def run_experiments(
         exchange_matrix_weighted_bonferroni = np.load(f'{results_dir}/weighted_bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
         exchange_matrix_fixed = np.load(f'{results_dir}/fixed_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
         exchange_matrix_evalues = np.load(f'{results_dir}/evalues_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_evalues_active = np.load(f'{results_dir}/evalues_active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_active = np.load(f'{results_dir}/active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
         total_trials_saved_fs = np.sum(exchange_matrix_saved)
 
     print("Exchange matrix for graphical multitest (time to decision): ")
@@ -569,12 +677,16 @@ def run_experiments(
     print(exchange_matrix_saved)
     print(f"Total trials saved (graphical multitest): {total_trials_saved_fs}")
     print()
+    n_hypotheses = len(null_hypotheses_policy_indices)
+    mean_rejected = {k: np.mean(v) for k, v in n_rejected_per_run.items()}
     print("Actual Sample complexities: ")
-    print(f"Complexity of Our Approach:                   {true_sample_complexity_fs}")
-    print(f"Complexity of E-values Approach:              {true_sample_complexity_evalues}")
-    print(f"Complexity of Bonferroni Approach:            {true_sample_complexity_bonferroni}")
-    print(f"Complexity of Weighted Bonferroni Approach:   {true_sample_complexity_weighted_bonferroni}")
-    print(f"Complexity of Fixed Sequence Approach:        {true_sample_complexity_fixed}")
+    print(f"Complexity of Our Approach:                   {true_sample_complexity_fs}  (rejected {mean_rejected['graphical']:.1f}/{n_hypotheses})")
+    print(f"Complexity of E-values Approach:              {true_sample_complexity_evalues}  (rejected {mean_rejected['evalues']:.1f}/{n_hypotheses})")
+    print(f"Complexity of E-values Active Approach:       {true_sample_complexity_evalues_active}  (rejected {mean_rejected['evalues_active']:.1f}/{n_hypotheses})")
+    print(f"Complexity of Active Graphical Approach:      {true_sample_complexity_active}  (rejected {mean_rejected['graphical_active']:.1f}/{n_hypotheses})")
+    print(f"Complexity of Bonferroni Approach:            {true_sample_complexity_bonferroni}  (rejected {mean_rejected['bonferroni']:.1f}/{n_hypotheses})")
+    print(f"Complexity of Weighted Bonferroni Approach:   {true_sample_complexity_weighted_bonferroni}  (rejected {mean_rejected['weighted_bonferroni']:.1f}/{n_hypotheses})")
+    print(f"Complexity of Fixed Sequence Approach:        {true_sample_complexity_fixed}  (rejected {mean_rejected['fixed']:.1f}/{n_hypotheses})")
     print()
     print("Decision times: ")
     with np.printoptions(precision=3, suppress=True):
@@ -622,6 +734,18 @@ def run_experiments(
         exchange_matrix_evalues,
         title='E-Values Graphical: Time to Decision',
         save_path=f'{results_dir}/graphical_evalues_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        real_sim_means=real_sim_means, figsize=figsize,
+    )
+    plot_heatmap(
+        exchange_matrix_evalues_active,
+        title='E-Values Active Graphical: Time to Decision',
+        save_path=f'{results_dir}/graphical_evalues_active_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        real_sim_means=real_sim_means, figsize=figsize,
+    )
+    plot_heatmap(
+        exchange_matrix_active,
+        title='Active Graphical (p-value): Time to Decision',
+        save_path=f'{results_dir}/graphical_active_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
 

@@ -43,6 +43,7 @@ if __name__ == "__main__":
         help=("Number of teams in the ranking / score computation. " 
               "Defaults to 3."),
     )
+    
     parser.add_argument(
         "-ng",
         "--n_games",

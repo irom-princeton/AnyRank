@@ -336,6 +336,7 @@ class SequentialGraphicalTest:
         decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         policy_evals = {i: [] for i in range(policy_data.shape[1])}
+        num_policies = policy_data.shape[1]
         print(f"Running means: ", np.nanmean(policy_data, axis=0), "\n")
 
         if alpha_per_hypothesis is not None:
@@ -374,28 +375,118 @@ class SequentialGraphicalTest:
         hypotheses_completed = np.zeros(num_hypotheses)
         hypotheses_correct = np.zeros(num_hypotheses)
 
-        for k in range(len(policy_data)): # sequentially go through data points
+        KK = np.zeros(num_hypotheses)
+        # Active sampling scheme
+        iters = int(0)
+        Tmax = num_policies * Nmax + 1
+        hyp_completed_vs_time = np.zeros(Tmax)
+        while np.min(hypotheses_completed) <= 0.5:
+            # Get all rejected indices
             all_rejected = [i for i in range(num_hypotheses) if i in rejected]
-            if len(all_rejected) == num_hypotheses:
-                return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct
             
-            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-                if i not in rejected: # Keep collecting data
+            # Mark all rejected hypotheses as completed
+            for k in range(len(all_rejected)):
+                if hypotheses_completed[all_rejected[k]] <= 0.5:
+                    hypotheses_completed[all_rejected[k]] = 1.0
+            
+            # Hypothesis also completed if no more samples may be drawn
+            for k in range(num_hypotheses):
+                if KK[k] >= Nmax:
+                    hypotheses_completed[k] = 1.0
+            
+            active_alpha = copy.deepcopy(self.alpha)
+            for i in range(num_hypotheses):
+                if hypotheses_completed[i] > 0.5:
+                    active_alpha[i] *= 0.
+            
+            # Hypothesis also completed if no more samples may be drawn
+            for k in range(num_hypotheses):
+                if hypotheses_completed[k] > 0.5 and np.isclose(hypotheses_correct[k], 0.0) and KK[k] < policy_data.shape[0]:
+                    hypothesis_policy_indices = ordered_hypotheses_policy_indices[k]
                     p0_index, p1_index = hypothesis_policy_indices
                     data0 = policy_data[:, p0_index]
                     data1 = policy_data[:, p1_index]
-                    if np.isnan(data0[k]) or np.isnan(data1[k]):
-                        continue
+
+                    nsm_alt = ContinuousNsmTest(
+                        alternative=Hypothesis.P0LessThanP1, alpha=alpha_per_hypothesis[i], c=np.arange(2)/1.
+                    )
+                    nsm_null = ContinuousNsmTest(
+                        alternative=Hypothesis.P0MoreThanP1, alpha=alpha_per_hypothesis[i], c=np.arange(2)/1.
+                    )
+                    n_k = int(KK[k])
+                    valid_k = ~np.isnan(data0[:n_k]) & ~np.isnan(data1[:n_k])
+                    d0_k, d1_k = data0[:n_k][valid_k], data1[:n_k][valid_k]
+                    res_alt = nsm_alt.run_on_sequence(d0_k, d1_k)
+                    p_value_alt = res_alt.info["P-Value"]
+                    res_null = nsm_null.run_on_sequence(d0_k, d1_k)
+                    p_value_null = res_null.info["P-Value"]
+                    
+                    if p_value_alt < p_value_null:
+                        hypotheses_correct[k] = 1.0
+                    else:
+                        hypotheses_correct[k] = -1.0
+
+            # Iterate through test definitions
+            # Active data collection:
+            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+                # print(f"Processing hypothesis {i}, policies {hypothesis_policy_indices}, at iteration {iters}: ", self.alpha[i] >= (self.total_alpha / num_hypotheses))
+                if hypotheses_completed[i] <= 0.5 and self.alpha[i] >= (np.max(active_alpha)-1e-8): # Collect data only if: (a) active and (b) actively preferred
+                    p0_index, p1_index = hypothesis_policy_indices
+                    data0 = policy_data[:, p0_index]
+                    data1 = policy_data[:, p1_index]
+                    # print(f"Policy indices and alpha: {p0_index}, {p1_index}, {self.alpha}")
+                    k = int(KK[i])
+                    
+                    if k not in policy_evals[p0_index]:
+                        policy_evals[p0_index].append(k)
+                    if k not in policy_evals[p1_index]:
+                        policy_evals[p1_index].append(k)
+
+                    # no more trials available
+                    if k >= len(data0) - 1 or np.isnan(data0[k]) or np.isnan(data1[k]):
+                        hypotheses_completed[i] = 1.0
+                        break
+                    
                     nsm_test = tests[i]
+                    if verbose:
+                        if len(policy_evals[p0_index]) % 50 == 0:
+                            print(
+                                "\n"
+                                "============================================================\n"
+                                f"  Iteration / Time : {k:<5d}    Hypothesis : H{i}\n"
+                                f"  Policy indices   : {hypothesis_policy_indices}\n"
+                                "------------------------------------------------------------\n"
+                                f"  alpha            : {self.alpha[i]:.4e}\n"
+                                f"  p-value          : {p_values[i]:.4e}\n"
+                                f"  samples          : ({len(policy_evals[p0_index])}, "
+                                f"{len(policy_evals[p1_index])})\n"
+                                f"  running means    : ({np.nanmean(data0[:k]):.4f}, "
+                                f"{np.nanmean(data1[:k]):.4f})\n"
+                                "------------------------------------------------------------\n"
+                                f"  Rejected         : {rejected}\n"
+                                "------------------------------------------------------------\n"
+                                f"  Current graph G:\n{self.G}\n"
+                                "============================================================\n"
+                            )
+                        # print(
+                        #     f"At time {k}, for hypothesis {i} with policy indices "
+                        #     f"{hypothesis_policy_indices} and alpha {self.alpha[i]}, collected "
+                        #     f"{len(policy_evals[p0_index])} and "
+                        #     f"{len(policy_evals[p1_index])} samples respectively"
+                        # )
+                        # print(f"Running means: ", np.mean(data0[:k]), np.mean(data1[:k]), "\n")
+                    
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
-                    p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
                     if nsm_result.decision == Decision.AcceptAlternative:
                         hypotheses_correct[i] = 1.0 
                     elif nsm_result.decision == Decision.AcceptNull:
                         hypotheses_correct[i] = -1.0
                     
                     p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
-        
+                    KK[i] += 1
+            
+            iters+=1
+            hyp_completed_vs_time[iters] = np.mean(hypotheses_completed)
             candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p_values[i] <= self.alpha[i]]
             if verbose:
                 print(f"At time {k}, p-values: {p_values}, alpha: {self.alpha}, candidates for rejection: {candidates}")
@@ -413,17 +504,15 @@ class SequentialGraphicalTest:
                         hypothesis_policy_indices = ordered_hypotheses_policy_indices[i]
                         if hypothesis_policy_indices not in rejected_hypotheses:
                             rejected_hypotheses.append(hypothesis_policy_indices)
-                            decision_times[hypothesis_policy_indices] = k # or nsm_time_of_decision, but we will just use k for now since it's more intuitive to say we made the decision at time k when we see the data point at time k.
+                            decision_times[hypothesis_policy_indices] = KK[i] # or nsm_time_of_decision, but we will just use k for now since it's more intuitive to say we made the decision at time k when we see the data point at time k.
 
                 # Reset alpha for remaining hypotheses to initial alpha (or alpha_per_hypothesis if provided) after each update:
                 for i in range(num_hypotheses):
                     if i not in rejected:
                         nsm_test = tests[i]
                         nsm_test.set_alpha(self.alpha[i])
-        
-        # hyp_completed_vs_time[iters+1:] +=  hyp_completed_vs_time[iters]
-
-        #return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct, hyp_completed_vs_time                
+        hyp_completed_vs_time[iters+1:] +=  hyp_completed_vs_time[iters]
+        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct, hyp_completed_vs_time                   
                         
         
         # for k in range(len(policy_data)): # sequentially go through data points
@@ -468,8 +557,6 @@ class SequentialGraphicalTest:
         #             if i not in rejected:
         #                 nsm_test = tests[i]
         #                 nsm_test.set_alpha(self.alpha[i])
-
         # return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected                
-        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct            
                         
         

@@ -176,9 +176,6 @@ class GraphicalTest:
             self.alpha = new_alpha
             self.G = new_G
         return rejected, graphs_over_time
-    
-
-    
 
 def initialize_bonferroni_test(Nmax, alpha, num_hypotheses):
     #bonferroni_step_test = StepTest(Hypothesis.P0LessThanP1, Nmax, alpha/num_hypotheses)

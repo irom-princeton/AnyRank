@@ -215,18 +215,19 @@ class SequentialGraphicalTest:
         Return the list of rejected hypotheses along with their decision times
         '''
         rejected_hypotheses = []
-        decision_times = {}
+        decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
             bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, 1)
             p0_index, p1_index = hypothesis_policy_indices
             data0 = policy_data[:, p0_index]
             data1 = policy_data[:, p1_index]
-            result = self.run_test_on_data(bonferroni_step_test, data0, data1)
+            valid = ~np.isnan(data0) & ~np.isnan(data1)
+            result = self.run_test_on_data(bonferroni_step_test, data0[valid], data1[valid])
             if result.decision == Decision.AcceptAlternative:
                 rejected_hypotheses.append(hypothesis_policy_indices)
                 decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
             else:
-                decision_times[hypothesis_policy_indices] = Nmax
+                decision_times[hypothesis_policy_indices] = "N/A"
         return rejected_hypotheses, decision_times
 
     def bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha):
@@ -235,19 +236,20 @@ class SequentialGraphicalTest:
         Return the list of rejected hypotheses along with their decision times
         '''
         rejected_hypotheses = []
-        decision_times = {}
+        decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
             bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, num_hypotheses)
             p0_index, p1_index = hypothesis_policy_indices
             data0 = policy_data[:, p0_index]
             data1 = policy_data[:, p1_index]
-            result = self.run_test_on_data(bonferroni_step_test, data0, data1)
+            valid = ~np.isnan(data0) & ~np.isnan(data1)
+            result = self.run_test_on_data(bonferroni_step_test, data0[valid], data1[valid])
             if result.decision == Decision.AcceptAlternative:
                 rejected_hypotheses.append(hypothesis_policy_indices)
                 decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
             else:
-                decision_times[hypothesis_policy_indices] = Nmax
+                decision_times[hypothesis_policy_indices] = "N/A"
         return rejected_hypotheses, decision_times
 
     def weighted_bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis):
@@ -256,7 +258,7 @@ class SequentialGraphicalTest:
         Return the list of rejected hypotheses along with their decision times
         '''
         rejected_hypotheses = []
-        decision_times = {}
+        decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
             alpha_i = alpha_per_hypothesis[i] 
@@ -264,12 +266,13 @@ class SequentialGraphicalTest:
             p0_index, p1_index = hypothesis_policy_indices
             data0 = policy_data[:, p0_index]
             data1 = policy_data[:, p1_index]
-            result = self.run_test_on_data(bonferroni_step_test, data0, data1)
+            valid = ~np.isnan(data0) & ~np.isnan(data1)
+            result = self.run_test_on_data(bonferroni_step_test, data0[valid], data1[valid])
             if result.decision == Decision.AcceptAlternative:
                 rejected_hypotheses.append(hypothesis_policy_indices)
                 decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
             else:
-                decision_times[hypothesis_policy_indices] = Nmax
+                decision_times[hypothesis_policy_indices] = "N/A"
         return rejected_hypotheses, decision_times
 
     def parse_nsm_test_result(self, test_result):
@@ -284,13 +287,25 @@ class SequentialGraphicalTest:
             time_of_decision = None
         return decision_str, time_of_decision
 
+    def initialize_graphical_nsm_test_partial_progress(self, Nmax, alpha):
+        nonparametric_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10
+            )
+        return nonparametric_nsm_test
 
-    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False):
+    def initialize_bonferroni_test_partial_progress(self, Nmax, alpha, num_hypotheses):
+        #bonferroni_step_test = StepTest(Hypothesis.P0LessThanP1, Nmax, alpha/num_hypotheses)
+        bonferroni_step_test = MirroredContinuousNsmTest(
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha/num_hypotheses, c=np.arange(11)/10
+            )
+        return bonferroni_step_test
+
+    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False, bernoulli=False):
         '''
         Similar to graphical_multitest but we will run the graphical test sequentially after each new p-value is computed and update the graph and alpha budgets accordingly.
         '''
         rejected_hypotheses = []
-        decision_times = {}
+        decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         
         if alpha_per_hypothesis is not None:
@@ -305,29 +320,33 @@ class SequentialGraphicalTest:
         p_values = np.ones(num_hypotheses)
         tests = dict()
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-            p0_index, p1_index = hypothesis_policy_indices
-            data0 = policy_data[:, p0_index]
-            data1 = policy_data[:, p1_index]
-
             # Getting data before running graphical test:
             if alpha_per_hypothesis is not None:
                 alpha_i = alpha_per_hypothesis[i]
             else:
                 alpha_i = self.alpha[i] # fraction of alpha allocated to this hypothesis
-            nsm_test = self.initialize_graphical_nsm_test(Nmax, alpha_i)
+            if not bernoulli:
+                nsm_test = self.initialize_graphical_nsm_test_partial_progress(Nmax, alpha_i)
+            else:
+                nsm_test = self.initialize_graphical_nsm_test(Nmax, alpha_i)
             tests[i] = nsm_test
         
+        # Initialize array to track correct hypothesis decisions
+        hypotheses_correct = np.zeros(num_hypotheses)
+
         for k in range(len(policy_data)): # sequentially go through data points
             all_rejected = [i for i in range(num_hypotheses) if i in rejected]
             if len(all_rejected) == num_hypotheses:
-                return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time
-            
+                return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, hypotheses_correct
+
             for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
                 if i not in rejected: # Keep collecting data
                     p0_index, p1_index = hypothesis_policy_indices
                     data0 = policy_data[:, p0_index]
                     data1 = policy_data[:, p1_index]
 
+                    if np.isnan(data0[k]) or np.isnan(data1[k]):
+                        continue
                     nsm_test = tests[i]
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
                     p_values[i] = nsm_test._e_value # Assuming the test result contains the p-value in info dictionary
@@ -359,5 +378,5 @@ class SequentialGraphicalTest:
                         nsm_test.set_alpha(self.alpha[i])
 
         # If some are not rejected:          
-        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time
+        return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, hypotheses_correct
         
