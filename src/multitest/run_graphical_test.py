@@ -34,7 +34,7 @@ class ExperimentConfig:
     plot_from_saved: bool = False      # set to True to plot from saved data
     run_new_experiment: bool = True    # set to False to plot from saved data
     results_dir: str = 'outputs/roboarena_subset4'
-
+    plot_violin: bool = True           # set to False to skip violin plots (data is always saved)
 
 
 def get_partial_ranking(rejected_hypotheses, null_hypotheses_policy_indices, n_policies, hypotheses_correct=None):
@@ -316,7 +316,7 @@ def get_policy_summary(eval_results):
     return Nmax
 
 def run_experiments(
-    n_policies, null_hypotheses, null_hypotheses_policy_indices,
+    n_policies, ordered_hypotheses,
     policy_data, Nmax, alpha_per_hypothesis,
     alpha_per_hypothesis_weighted_bonferroni, weighted_G,
     policy_index, real_sim_means, bernoulli=False,
@@ -358,12 +358,23 @@ def run_experiments(
         'weighted_bonferroni': [],
         'fixed': [],
     }
-
+    rejection_order_per_run = {
+        'graphical': [],
+        'evalues': [],
+        'evalues_active': [],
+        'graphical_active': [],
+        'bonferroni': [],
+        'weighted_bonferroni': [],
+        'fixed': [],
+    }
+    null_hypotheses = [hyp for hyp, _, _ in ordered_hypotheses]
+    null_hypotheses_policy_indices = [idx for _, idx, _ in ordered_hypotheses]
+    
     for i, policy in policy_index.items():
         print(f"Policy {policy} mean: ", np.nanmean(policy_data[:,i]))
     print("------------------------")
     for run in range(n_runs):
-        # Graphical multitest
+        ########################  P-value Graphical multitest ########################
         print("Running graphical multitest...")
         graphical_test = SequentialGraphicalTest(
             num_policies=n_policies,
@@ -380,14 +391,17 @@ def run_experiments(
         )
 
         _accumulate_samples(samples, run, decision_times, Nmax, procedure="p-graphical")
-        # animate(graphs_over_time, results_dir, Nmax, n_prior)
+        animate(graphs_over_time, results_dir, Nmax, n_prior)
         for key, value in decision_times.items():
             avg_ttd[key] = avg_ttd.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
         print("Decision times: ", decision_times, "\n")
         n_rejected_per_run['graphical'].append(len(rejected_hypotheses))
+        rejection_order_per_run['graphical'].append(
+            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses]
+        )
 
-        # E-value graphical multitest
+        ######################## E-Value Graphical multitest ########################
         print("Running e-value graphical multitest...")
         egraphical_test = ESequentialGraphicalTest(
             num_policies=n_policies,
@@ -408,8 +422,11 @@ def run_experiments(
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues)
         print("Decision times: ", decision_times_evalues, "\n")
         n_rejected_per_run['evalues'].append(len(rejected_hypotheses_evalues))
+        rejection_order_per_run['evalues'].append(
+            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_evalues]
+        )
 
-        # E-value active graphical multitest
+        ######################## E-Value Active Selection Graphical multitest ########################
         print("Running e-value active graphical multitest...")
         egraphical_active_test = EActiveSequentialGraphicalTest(
             num_policies=n_policies,
@@ -430,8 +447,11 @@ def run_experiments(
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues_active)
         print("Decision times: ", decision_times_evalues_active, "\n")
         n_rejected_per_run['evalues_active'].append(len(rejected_hypotheses_evalues_active))
+        rejection_order_per_run['evalues_active'].append(
+            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_evalues_active]
+        )
 
-        # Active graphical multitest (p-value, active sampling)
+        ######################## P-Value Active Selection Graphical multitest ########################
         print("Running active graphical multitest (p-value)...")
         agraphical_test = ASequentialGraphicalTest(
             num_policies=n_policies,
@@ -446,14 +466,17 @@ def run_experiments(
             )
         )
         _accumulate_samples(samples_active, run, decision_times_active, Nmax, procedure="graphical_active")
-        # animate(graphs_over_time_active, results_dir, Nmax, n_prior)
+        animate(graphs_over_time_active, results_dir, Nmax, n_prior)
         for key, value in decision_times_active.items():
             avg_ttd_active[key] = avg_ttd_active.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_active)
         print("Decision times: ", decision_times_active, "\n")
         n_rejected_per_run['graphical_active'].append(len(rejected_hypotheses_active))
+        rejection_order_per_run['graphical_active'].append(
+            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_active]
+        )
 
-        # Bonferroni
+        ######################## Bonferroni ########################
         print("Running Bonferroni corrected individual tests for comparison...")
         rejected_hypotheses_bonferroni, decision_times_bonferroni, hypotheses_correct_bonferroni = graphical_test.bonferroni_multitest(
             null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
@@ -464,8 +487,11 @@ def run_experiments(
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_bonferroni)
         print("Decision times: ", decision_times_bonferroni, "\n")
         n_rejected_per_run['bonferroni'].append(len(rejected_hypotheses_bonferroni))
+        rejection_order_per_run['bonferroni'].append(
+            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_bonferroni]
+        )
 
-        # Weighted Bonferroni
+        ######################## Weighted Bonferroni ########################
         print("Running weighted Bonferroni corrected individual tests for comparison...")
         rejected_hypotheses_weighted_bonferroni, decision_times_weighted_bonferroni, hypotheses_correct_weighted_bonferroni = (
             graphical_test.weighted_bonferroni_multitest(
@@ -480,8 +506,11 @@ def run_experiments(
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_weighted_bonferroni)
         print("Decision times: ", decision_times_weighted_bonferroni, "\n")
         n_rejected_per_run['weighted_bonferroni'].append(len(rejected_hypotheses_weighted_bonferroni))
+        rejection_order_per_run['weighted_bonferroni'].append(
+            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_weighted_bonferroni]
+        )
 
-        # Fixed sequence
+        ######################## Fixed Sequence ########################
         print("Running Fixed sequence individual tests for comparison...")
         rejected_hypotheses_fixed, decision_times_fixed, hypotheses_correct_fixed = graphical_test.fixed_multitest(
             null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
@@ -492,6 +521,15 @@ def run_experiments(
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_fixed)
         print("Decision times: ", decision_times_fixed, "\n")
         n_rejected_per_run['fixed'].append(len(rejected_hypotheses_fixed))
+        rejection_order_per_run['fixed'].append(
+            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_fixed]
+        )
+
+    os.makedirs(f'{results_dir}/rejection_order', exist_ok=True)
+    rejection_order_path = f'{results_dir}/rejection_order/rejection_order_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.json'
+    with open(rejection_order_path, 'w') as f:
+        json.dump(rejection_order_per_run, f, indent=2)
+    print(f"Rejection order saved to {rejection_order_path}")
 
     with open(f'{results_dir}/empirical_real_means_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
         f.write("Real-sim pairs: \n")
@@ -683,6 +721,20 @@ def run_experiments(
     print(f"Complexity of Bonferroni Approach:            {true_sample_complexity_bonferroni}  (rejected {mean_rejected['bonferroni']:.1f}/{n_hypotheses})")
     print(f"Complexity of Weighted Bonferroni Approach:   {true_sample_complexity_weighted_bonferroni}  (rejected {mean_rejected['weighted_bonferroni']:.1f}/{n_hypotheses})")
     print(f"Complexity of Fixed Sequence Approach:        {true_sample_complexity_fixed}  (rejected {mean_rejected['fixed']:.1f}/{n_hypotheses})")
+
+    sc_path = f'{results_dir}/sample_complexity/actual_sample_complexity_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt'
+    with open(sc_path, 'w') as f:
+        f.write(f"Actual Sample Complexities — N={Nmax}, n={n_prior}, alpha={alpha}, beta={beta}\n")
+        f.write(f"Total hypotheses: {n_hypotheses}\n")
+        f.write("==============================\n")
+        f.write(f"Our Approach (Graphical):              {true_sample_complexity_fs}  (rejected {mean_rejected['graphical']:.1f}/{n_hypotheses})\n")
+        f.write(f"E-values (passive):                    {true_sample_complexity_evalues}  (rejected {mean_rejected['evalues']:.1f}/{n_hypotheses})\n")
+        f.write(f"E-values (active):                     {true_sample_complexity_evalues_active}  (rejected {mean_rejected['evalues_active']:.1f}/{n_hypotheses})\n")
+        f.write(f"Active Graphical (p-value):             {true_sample_complexity_active}  (rejected {mean_rejected['graphical_active']:.1f}/{n_hypotheses})\n")
+        f.write(f"Bonferroni:                            {true_sample_complexity_bonferroni}  (rejected {mean_rejected['bonferroni']:.1f}/{n_hypotheses})\n")
+        f.write(f"Weighted Bonferroni:                   {true_sample_complexity_weighted_bonferroni}  (rejected {mean_rejected['weighted_bonferroni']:.1f}/{n_hypotheses})\n")
+        f.write(f"Fixed Sequence:                        {true_sample_complexity_fixed}  (rejected {mean_rejected['fixed']:.1f}/{n_hypotheses})\n")
+    print(f"Actual sample complexities written to {sc_path}")
     print()
     print("Decision times: ")
     with np.printoptions(precision=3, suppress=True):
@@ -760,14 +812,35 @@ def run_experiments(
         "fixed":               {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_fixed.items()},
     }
     policy_names = [policy_index[i] for i in range(n_policies)]
-    make_violin_plots_from_ttds(
-        progress_array_dict=progress_array_dict_cld,
-        ttd_dicts=ttd_dicts_cld,
-        policies=policy_names,
-        labels=policy_names,
-        max_sample_size_per_model=Nmax,
-        output_dir=os.path.join(results_dir, "cld_violins"),
+
+    # Always persist the violin inputs so they can be re-plotted later.
+    violin_dir = os.path.join(results_dir, "violin_data")
+    os.makedirs(violin_dir, exist_ok=True)
+    violin_base = os.path.join(violin_dir, f"violin_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}")
+    np.savez(
+        violin_base + "_progress.npz",
+        **{name: arr for name, arr in progress_array_dict_cld.items()},
     )
+    violin_meta = {
+        "policies": policy_names,
+        "Nmax": Nmax,
+        "ttd_dicts": {
+            method: [[pi, pj, ttd] for (pi, pj), ttd in ttd_dict.items()]
+            for method, ttd_dict in ttd_dicts_cld.items()
+        },
+    }
+    with open(violin_base + "_meta.json", "w") as f:
+        json.dump(violin_meta, f, indent=2)
+
+    if plot_from_saved or cfg.plot_violin:
+        make_violin_plots_from_ttds(
+            progress_array_dict=progress_array_dict_cld,
+            ttd_dicts=ttd_dicts_cld,
+            policies=policy_names,
+            labels=policy_names,
+            max_sample_size_per_model=Nmax,
+            output_dir=os.path.join(results_dir, "cld_violins"),
+        )
 
 
 def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None):
@@ -817,30 +890,45 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
         (i, j) for i in range(n_policies) for j in range(i + 1, n_policies)
     ]
 
+    print("Ordered policy pairs (by time to decision on null hypothesis mu0 < mu1): ")
+    hyp_diffs = [abs(mu1 - mu0) for (mu0, mu1) in null_hypotheses]
+
+    # ordering hypotheses by absolute difference in means (largest gap = easiest to detect = most power)
+    # each tuple is (null_hypothesis which is (sim0, sim1), policy_indices, mean_diff)
+    ordered_hypotheses = sorted(zip(null_hypotheses, null_hypotheses_policy_indices, hyp_diffs), key=lambda x: x[2], reverse=True)
+    ordered_hyp_diffs = [item[2] for item in ordered_hypotheses]
+    ordered_null_hypotheses = [item[0] for item in ordered_hypotheses]
+    ordered_null_hypotheses_policy_indices = [item[1] for item in ordered_hypotheses]
+
+    alpha_per_hypothesis = allocate_alpha(ordered_hyp_diffs, cfg.alpha, beta=cfg.beta)
+    alpha_per_hypothesis_weighted_bonferroni = allocate_alpha(ordered_hyp_diffs, cfg.alpha, beta=-cfg.beta)
+    
+
     successor_neighbors = {
         (hyp_idx, hyp): [
             (other_hyp_idx, other_hyp)
-            for other_hyp_idx, other_hyp in enumerate(null_hypotheses)
+            for other_hyp_idx, other_hyp in enumerate(ordered_null_hypotheses)
             if hyp_idx != other_hyp_idx
         ]
-        for hyp_idx, hyp in enumerate(null_hypotheses)
+        for hyp_idx, hyp in enumerate(ordered_null_hypotheses)
     }
 
     with open(os.path.join(cfg.results_dir, 'successor_neighbors.txt'), 'w') as f:
         for key, neighbors in successor_neighbors.items():
             f.write(f"{key}: {neighbors}\n")
 
-    print("Ordered policy pairs (by time to decision on null hypothesis mu0 < mu1): ")
-    hyp_diffs = [abs(mu1 - mu0) for (mu0, mu1) in null_hypotheses]
-
-    alpha_per_hypothesis = allocate_alpha(hyp_diffs, cfg.alpha, beta=cfg.beta)
-    alpha_per_hypothesis_weighted_bonferroni = allocate_alpha(hyp_diffs, cfg.alpha, beta=-cfg.beta)
-    
     weighted_G = np.zeros((num_hypotheses, num_hypotheses))
-    for k1, hyp1 in enumerate(null_hypotheses):
+    for k1, hyp1 in enumerate(ordered_null_hypotheses):
         neighboring_hypotheses = [neighbor[1] for neighbor in successor_neighbors[(k1, hyp1)]]
         neighbor_diffs = [abs(mu1 - mu0) for (mu0, mu1) in neighboring_hypotheses]
         weights_hyp1 = allocate_weights(neighbor_diffs, beta=cfg.beta)
+        sig_weights = len([w for w in weights_hyp1 if w > 1e-3])
+        
+        if sig_weights > 1:
+            print(f"Hypothesis {k1} (mu0={hyp1[0]:.2f}, mu1={hyp1[1]:.2f}) has {sig_weights} significant neighbors with weights: {weights_hyp1}")
+            
+        print(f"Null hypothesis {k1} (mu0={hyp1[0]:.2f}, mu1={hyp1[1]:.2f}):")
+        print(np.array2string(weights_hyp1, precision=3, suppress_small=True,))
         for idx, (k2, _) in enumerate(successor_neighbors[(k1, hyp1)]):
             weighted_G[k1, k2] = weights_hyp1[idx]
 
@@ -849,13 +937,14 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
 
     print("Alpha allocated to each hypotheses")
     with open(f'{cfg.results_dir}/alpha_allocation.txt', 'w') as f:
-        for i, null in enumerate(null_hypotheses):
+        for i, null in enumerate(ordered_null_hypotheses):
             line = f"Hypothesis {i} (mu0={null[0]:.2f}, mu1={null[1]:.2f}): alpha = {alpha_per_hypothesis[i]:.4f}\n"
             print(line.strip())
             f.write(line)
 
+    breakpoint()
     run_experiments(
-        n_policies, null_hypotheses, null_hypotheses_policy_indices,
+        n_policies, ordered_hypotheses,
         policy_matrix, Nmax, alpha_per_hypothesis,
         alpha_per_hypothesis_weighted_bonferroni, weighted_G,
         policy_index, real_sim_means, bernoulli,

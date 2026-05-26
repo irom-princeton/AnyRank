@@ -192,12 +192,14 @@ class SequentialGraphicalTest:
                     #         f"Denominator became zero while updating edge ({k}, {j}). "
                     #         "Check whether the graph satisfies the needed conditions."
                     #     )
-
+                    
                     if denom > 1e-8: 
                         new_G[k, j] = (self.G[k, j] + self.G[k, i] * self.G[i, j]) / denom
                     else:
+                        breakpoint()
                         new_G[k, j] = 0.0
-
+                    
+                    breakpoint()
                     if new_G[k, j] > 1.1 or new_G[k, j] < 0.0:
                         breakpoint()
             self.alpha = copy.deepcopy(new_alpha)
@@ -448,6 +450,7 @@ class SequentialGraphicalTest:
                     data0 = policy_data[:, p0_index]
                     data1 = policy_data[:, p1_index]
                     if np.isnan(data0[k]) or np.isnan(data1[k]):
+                        breakpoint()
                         continue
                     nsm_test = tests[i]
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
@@ -458,12 +461,35 @@ class SequentialGraphicalTest:
                         hypotheses_correct[i] = -1.0
                     
                     p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
-        
+
+                    if verbose:
+                        if k % 50 == 0:
+                            print(
+                                "\n"
+                                "============================================================\n"
+                                f"  Iteration / Time : {k:<5d}    Hypothesis : H{i}\n"
+                                f"  Policy indices   : {hypothesis_policy_indices}\n"
+                                "------------------------------------------------------------\n"
+                                f"  alpha            : {self.alpha[i]:.4e}\n"
+                                f"  p-value          : {p_values[i]:.4e}\n"
+                                f"  samples          : ({len(policy_evals[p0_index])}, "
+                                f"{len(policy_evals[p1_index])})\n"
+                                f"  running means    : ({np.nanmean(data0[:k]):.4f}, "
+                                f"{np.nanmean(data1[:k]):.4f})\n"
+                                "------------------------------------------------------------\n"
+                                f"  Rejected         : {rejected}\n"
+                                "------------------------------------------------------------\n"
+                                f"  Current graph G:\n{self.G}\n"
+                                "============================================================\n"
+                            )
+                            
+
             candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p_values[i] <= self.alpha[i]]
             if verbose:
                 print(f"At time {k}, p-values: {p_values}, alpha: {self.alpha}, candidates for rejection: {candidates}")
 
             if len(candidates) > 0:
+                breakpoint()
                 # Plot graphs:
                 rejected_at_k, graph_over_time, new_alpha_at_rejected = self.sequential_graphical_test(p_values, verbose=False)
                 graphs_over_time.extend(graph_over_time)

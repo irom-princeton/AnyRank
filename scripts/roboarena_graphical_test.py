@@ -101,14 +101,37 @@ def load_all_data(data_bin="data1"):
     return data_progress_filtered_truncated
 
 
-def roboarena_experiment(cfg=None):
+def roboarena_wm_experiment(selected_policies = None, wm_prior_path=None,cfg=None):
+    """Load roboarena data and return the generic inputs needed by main()."""
+    if cfg is None:
+        cfg = ExperimentConfig()
+    bernoulli = False
+    data_bins = ["data2"]
+    if not selected_policies:
+        selected_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
+    policy_data = get_real_evals(data_bins=data_bins, selected_policies=selected_policies)
+
+    get_policy_summary(policy_data)
+    Nmax_csv = min(len(v) for v in policy_data.values())
+    _, real_evals = split_eval(policy_data, Nmax_csv, nruns=cfg.n_prior)
+    policies = list(real_evals.keys())
+
+    # Load wm_evals from csv: long-format with columns task_id, wm_id, instruction, score
+    df_wm = pd.read_csv(wm_prior_path)
+    wm_evals = {k: df_wm[df_wm['wm_id'] == k]['score'].to_numpy() for k in policies}
+    sim_means = {k: np.mean(wm_evals[k]) for k in policies}
+    real_means = {k: np.mean(real_evals[k]) for k in policies}
+    return policy_data, policies, sim_means, real_means, bernoulli
+
+def roboarena_experiment(selected_policies = None, cfg=None):
     """Load roboarena data and return the generic inputs needed by main()."""
     if cfg is None:
         cfg = ExperimentConfig()
     bernoulli = False
     data_bins = ["data2"]
     perfect_sim = False
-    selected_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
+    if not selected_policies:
+        selected_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
     policy_data = get_real_evals(data_bins=data_bins, selected_policies=selected_policies)
 
     # shuffle data for each policy
@@ -117,9 +140,7 @@ def roboarena_experiment(cfg=None):
 
     get_policy_summary(policy_data)
     Nmax_csv = min(len(v) for v in policy_data.values())
-    prior_evals, _ = split_eval(policy_data, Nmax_csv, nruns=cfg.n_prior)
-    policies = list(prior_evals.keys())
-    breakpoint()
+    policies = list(policy_data.keys())
     
     # data dump 1:
     # data_progress_filtered_truncated = load_all_data()
@@ -131,7 +152,7 @@ def roboarena_experiment(cfg=None):
         sim_means = {p: np.mean(policy_data[p]) for p in policies}
         real_means = {p: np.mean(policy_data[p]) for p in policies}
     else:
-        _, real_evals = split_eval(policy_data, Nmax_csv, nruns=cfg.n_prior)
+        prior_evals, real_evals = split_eval(policy_data, Nmax_csv, nruns=cfg.n_prior)
         sim_means = {k: np.mean(prior_evals[k]) for k in policies}
         real_means = {k: np.mean(real_evals[k]) for k in policies}
 
@@ -139,6 +160,49 @@ def roboarena_experiment(cfg=None):
 
 
 if __name__ == '__main__':
-    cfg = ExperimentConfig(beta=1, results_dir='outputs/roboarena_graphical_test')
-    policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
-    main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg)
+    beta_range = [0, 1, 5, 10, 25, 50]
+    four_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
+    seven_policies = ["paligemma_binning_droid",
+            "pi0_droid",
+            "paligemma_vq_droid",
+            "paligemma_fast_specialist_droid",
+            "paligemma_fast_droid",
+            "paligemma_diffusion_droid",
+            "pi0_fast_droid"]
+    
+    exp_name = "test_fixed_sequence"  # options: "roboarena4", "roboarena7", "roboarena4_wm_prior", "roboarena7_wm_prior", "test_fixed_sequence"
+
+    ## RoboArena 4 with 20 heldout evals per policy
+    if exp_name == "roboarena4":
+        for beta in beta_range:
+            cfg = ExperimentConfig(beta=beta, results_dir=f'outputs/{exp_name}')
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg)
+
+    ## RoboArena 7 with 20 heldout evals per policy
+    if exp_name == "roboarena7":
+        for beta in beta_range:
+            seven_cfg = ExperimentConfig(beta=beta, results_dir=f'outputs/{exp_name}')
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=seven_policies, cfg=seven_cfg)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=seven_cfg)
+
+
+    ## RoboArena WM experiment with 4 policies
+    if exp_name == "roboarena4_wm_prior":
+        for beta in beta_range:
+            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=f'outputs/{exp_name}')
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg)
+
+    ## RoboArena WM experiment with 7 policies
+    if exp_name == "roboarena7_wm_prior":
+        for beta in beta_range:
+            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=f'outputs/{exp_name}')
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg)
+
+    if exp_name == "test_fixed_sequence":
+        beta = 1000
+        test_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=f'outputs/{exp_name}')
+        policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=test_cfg)
+        main(policy_data, policies, sim_means, real_means, bernoulli, cfg=test_cfg)
