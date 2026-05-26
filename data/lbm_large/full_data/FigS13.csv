@@ -1,0 +1,21 @@
+Panel,Task,Method,Num_Successes,Num_Rollouts,Success_Rate,CLD_Letter
+FigS13_Sim,Aggregate - Seen Simulation tasks (Nominal),LBM (UNet) BASE Mix,1156.0,2591.0,0.4461597839,b
+FigS13_Sim,Aggregate - Seen Simulation tasks (Nominal),LBM (UNet) OXE Mix,884.0,2595.0,0.340655106,c
+FigS13_Sim,Aggregate - Seen Simulation tasks (Nominal),LBM (UNet) REAL Mix,1195.0,2594.0,0.4606784888,b
+FigS13_Sim,Aggregate - Seen Simulation tasks (Nominal),LBM (UNet) SIM Mix,1406.0,2593.0,0.5422290783,a
+FigS13_Sim,Aggregate - Seen Simulation tasks (Nominal),LBM (UNet) UMI Mix,807.0,2588.0,0.3118238022,c
+FigS13_Sim,Aggregate - Seen Simulation tasks (DistShift),LBM (UNet) BASE Mix,203.0,2586.0,0.0784996133,a
+FigS13_Sim,Aggregate - Seen Simulation tasks (DistShift),LBM (UNet) OXE Mix,224.0,2581.0,0.08678806664,ab
+FigS13_Sim,Aggregate - Seen Simulation tasks (DistShift),LBM (UNet) REAL Mix,281.0,2592.0,0.1084104938,a
+FigS13_Sim,Aggregate - Seen Simulation tasks (DistShift),LBM (UNet) SIM Mix,294.0,2572.0,0.1143079316,a
+FigS13_Sim,Aggregate - Seen Simulation tasks (DistShift),LBM (UNet) UMI Mix,196.0,2578.0,0.07602792863,b
+FigS13_Sim,Aggregate - Unseen Simulation tasks (Nominal),LBM (UNet) BASE Mix,21.0,599.0,0.03505843072,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (Nominal),LBM (UNet) OXE Mix,38.0,599.0,0.06343906511,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (Nominal),LBM (UNet) REAL Mix,20.0,600.0,0.03333333333,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (Nominal),LBM (UNet) SIM Mix,32.0,599.0,0.05342237062,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (Nominal),LBM (UNet) UMI Mix,31.0,599.0,0.05175292154,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (DistShift),LBM (UNet) BASE Mix,6.0,597.0,0.01005025126,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (DistShift),LBM (UNet) OXE Mix,11.0,598.0,0.01839464883,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (DistShift),LBM (UNet) REAL Mix,9.0,598.0,0.01505016722,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (DistShift),LBM (UNet) SIM Mix,25.0,597.0,0.0418760469,a
+FigS13_Sim,Aggregate - Unseen Simulation tasks (DistShift),LBM (UNet) UMI Mix,13.0,593.0,0.02192242833,a
