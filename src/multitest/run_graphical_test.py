@@ -17,6 +17,7 @@ from multitest.sequential_graphical import SequentialGraphicalTest
 from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
 from multitest.sequential_graphical_evalue_active import SequentialGraphicalTest as EActiveSequentialGraphicalTest
 from multitest.sequential_graphical_active import SequentialGraphicalTest as ASequentialGraphicalTest
+from multitest.plot_cld import make_violin_plots_from_ttds
 import pandas as pd
 
 #############################################
@@ -35,51 +36,31 @@ class ExperimentConfig:
     results_dir: str = 'outputs/roboarena_subset4'
 
 
-def get_real_evals(data_bins=["data1"], selected_policies=[]):
+
+def get_partial_ranking(rejected_hypotheses, null_hypotheses_policy_indices, n_policies, hypotheses_correct=None):
     """
-    Returns the real and simulated means for a given task and policy from PlayWorld simulation
-    """
-    filename = "per_trial_progress_data.csv"
+    Derive a partial ranking from decided pairwise hypotheses.
 
-    if selected_policies:
-        keys = selected_policies
-    else:
-        keys = [
-            "paligemma_binning_droid",
-            "pi0_droid",
-            "paligemma_vq_droid",
-            "paligemma_fast_specialist_droid",
-            "paligemma_fast_droid",
-            "paligemma_diffusion_droid",
-            "pi0_fast_droid",
-        ]
+    For each decided pair (p0, p1), the direction is determined by hypotheses_correct:
+      +1  — null rejected, alternative accepted  → p1 > p0 (p1 wins, p0 loses)
+      -1  — null accepted                        → p0 > p1 (p0 wins, p1 loses)
+    When hypotheses_correct is None every decided pair is assumed to have direction +1
+    (backward-compatible with callers that only track rejections).
 
-    eval_results = {k: np.array([]) for k in keys}
-    for data_bin in data_bins:
-        data_path = os.path.join(os.path.dirname(__file__), "..", "data", "roboarena", data_bin, filename)
-        df = pd.read_csv(data_path)
-        for k in keys:
-            eval_results[k] = np.concatenate([eval_results[k], df[k].dropna().to_numpy()])
-    return eval_results
-
-def get_partial_ranking(rejected_hypotheses, null_hypotheses_policy_indices, n_policies):
-    """
-    Derive a partial ranking from rejected pairwise hypotheses.
-
-    Rejecting hypothesis (p0, p1) establishes p1 > p0 with statistical confidence.
-    Pairs that were tested but not rejected are incomparable — no ordering is claimed.
+    Pairs with no decision are left incomparable — no ordering is claimed.
 
     The ranking is a linear extension of the confirmed partial order, using net score
-    (wins - losses) as the primary key and raw wins as a tiebreaker. This respects
-    confirmed dominance relationships while leaving incomparable pairs explicitly flagged
-    rather than silently assigning an arbitrary order between them.
+    (wins - losses) as the primary key and raw wins as a tiebreaker.
 
     Parameters
     ----------
-    rejected_hypotheses            : list of (p0, p1) pairs that were rejected;
-                                     each rejection means policy p1 > policy p0 (confirmed)
+    rejected_hypotheses            : list of (p0, p1) pairs for which the test reached
+                                     a decision (null rejected or accepted)
     null_hypotheses_policy_indices : full ordered list of all tested (p0, p1) pairs
     n_policies                     : total number of policies
+    hypotheses_correct             : optional dict {(p0, p1): +1 or -1} recording the
+                                     direction of each decision; if None, all decisions
+                                     are treated as null-rejected (+1)
 
     Returns
     -------
@@ -92,9 +73,14 @@ def get_partial_ranking(rejected_hypotheses, null_hypotheses_policy_indices, n_p
     wins = {i: 0 for i in range(n_policies)}
     losses = {i: 0 for i in range(n_policies)}
     rejected_set = set(map(tuple, rejected_hypotheses))
-    for p0, p1 in rejected_hypotheses:
-        wins[p1] += 1
-        losses[p0] += 1
+    for i, (p0, p1) in enumerate(rejected_hypotheses):
+        direction = hypotheses_correct[i] if hypotheses_correct is not None else 1
+        if direction == 1:
+            wins[p1] += 1
+            losses[p0] += 1
+        else:
+            wins[p0] += 1
+            losses[p1] += 1
     incomparable = [pair for pair in null_hypotheses_policy_indices if tuple(pair) not in rejected_set]
     ranking = sorted(range(n_policies),
                      key=lambda x: (wins[x] - losses[x], wins[x]),
@@ -256,7 +242,10 @@ def animate(graph_axes: list, results_dir: str, Nmax: int, n_prior: int):
 def plot_heatmap(matrix, title, save_path, real_sim_means, fmt='.2f', figsize=(12, 10)):
     """Render a labelled heatmap and save it to disk."""
     n = matrix.shape[0]
-    xlabels = [f"{real_sim_means[i][1]:.2f}" for i in range(n)]
+    xlabels = [
+        f"R={real:.2f}\nS={sim:.2f}"
+        for real, sim in real_sim_means
+    ]
     ylabels = xlabels[::-1]
     fig, ax = plt.subplots(figsize=figsize)
     cax = ax.matshow(matrix, cmap='viridis')
@@ -270,13 +259,13 @@ def plot_heatmap(matrix, title, save_path, real_sim_means, fmt='.2f', figsize=(1
                     color=text_color, fontsize=int(2*min(figsize)))
 
     fig.colorbar(cax)
-    ax.set_xlabel('mu0')
-    ax.set_ylabel('mu1')
-    ax.set_title(title)
+    ax.set_xlabel("Policy 0 mean (real, sim)", fontsize=int(2*figsize[0]))
+    ax.set_ylabel("Policy 1 mean (real, sim)", fontsize=int(2*figsize[1]))
+    ax.set_title(title, fontsize=int(2*figsize[0]))
     ax.set_xticks(range(n))
     ax.set_yticks(range(n))
-    ax.set_xticklabels(xlabels, rotation=90)
-    ax.set_yticklabels(ylabels)
+    ax.set_xticklabels(xlabels, rotation=0,fontsize=16)
+    ax.set_yticklabels(ylabels, fontsize=16)
     plt.savefig(save_path, dpi=500, bbox_inches='tight')
     plt.close()
 
@@ -391,7 +380,7 @@ def run_experiments(
         )
 
         _accumulate_samples(samples, run, decision_times, Nmax, procedure="p-graphical")
-        animate(graphs_over_time, results_dir, Nmax, n_prior)
+        # animate(graphs_over_time, results_dir, Nmax, n_prior)
         for key, value in decision_times.items():
             avg_ttd[key] = avg_ttd.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
@@ -405,7 +394,7 @@ def run_experiments(
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
-        rejected_hypotheses_evalues, _, decision_times_evalues, _, _, graphs_over_time_evalues, _ = (
+        rejected_hypotheses_evalues, _, decision_times_evalues, _, _, graphs_over_time_evalues, hypotheses_correct_evalues = (
             egraphical_test.sequential_graphical_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
                 alpha_per_hypothesis=alpha_per_hypothesis,
@@ -413,7 +402,7 @@ def run_experiments(
             )
         )
         _accumulate_samples(samples_evalues, run, decision_times_evalues, Nmax, procedure="evalues")
-        animate(graphs_over_time_evalues, results_dir, Nmax, n_prior)
+        # animate(graphs_over_time_evalues, results_dir, Nmax, n_prior)
         for key, value in decision_times_evalues.items():
             avg_ttd_evalues[key] = avg_ttd_evalues.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues)
@@ -427,7 +416,7 @@ def run_experiments(
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
-        rejected_hypotheses_evalues_active, _, decision_times_evalues_active, _, _, graphs_over_time_evalues_active, _, _ = (
+        rejected_hypotheses_evalues_active, _, decision_times_evalues_active, _, _, graphs_over_time_evalues_active, _, hypotheses_correct_evalues_active, _ = (
             egraphical_active_test.sequential_graphical_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
                 alpha_per_hypothesis=alpha_per_hypothesis,
@@ -435,7 +424,7 @@ def run_experiments(
             )
         )
         _accumulate_samples(samples_evalues_active, run, decision_times_evalues_active, Nmax, procedure="evalues_active")
-        animate(graphs_over_time_evalues_active, results_dir, Nmax, n_prior)
+        # animate(graphs_over_time_evalues_active, results_dir, Nmax, n_prior)
         for key, value in decision_times_evalues_active.items():
             avg_ttd_evalues_active[key] = avg_ttd_evalues_active.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues_active)
@@ -449,7 +438,7 @@ def run_experiments(
             null_hypotheses=null_hypotheses_policy_indices,
             total_alpha=alpha,
         )
-        rejected_hypotheses_active, _, decision_times_active, _, _, graphs_over_time_active, _, _ = (
+        rejected_hypotheses_active, _, decision_times_active, _, _, graphs_over_time_active, _, hypotheses_correct_active, _ = (
             agraphical_test.sequential_graphical_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
                 alpha_per_hypothesis=alpha_per_hypothesis,
@@ -457,7 +446,7 @@ def run_experiments(
             )
         )
         _accumulate_samples(samples_active, run, decision_times_active, Nmax, procedure="graphical_active")
-        animate(graphs_over_time_active, results_dir, Nmax, n_prior)
+        # animate(graphs_over_time_active, results_dir, Nmax, n_prior)
         for key, value in decision_times_active.items():
             avg_ttd_active[key] = avg_ttd_active.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_active)
@@ -466,7 +455,7 @@ def run_experiments(
 
         # Bonferroni
         print("Running Bonferroni corrected individual tests for comparison...")
-        rejected_hypotheses_bonferroni, decision_times_bonferroni = graphical_test.bonferroni_multitest(
+        rejected_hypotheses_bonferroni, decision_times_bonferroni, hypotheses_correct_bonferroni = graphical_test.bonferroni_multitest(
             null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
         )
         _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni, Nmax, procedure="bonferroni")
@@ -478,12 +467,13 @@ def run_experiments(
 
         # Weighted Bonferroni
         print("Running weighted Bonferroni corrected individual tests for comparison...")
-        rejected_hypotheses_weighted_bonferroni, decision_times_weighted_bonferroni = (
+        rejected_hypotheses_weighted_bonferroni, decision_times_weighted_bonferroni, hypotheses_correct_weighted_bonferroni = (
             graphical_test.weighted_bonferroni_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax,
                 alpha_per_hypothesis_weighted_bonferroni, bernoulli=bernoulli
             )
         )
+        
         _accumulate_samples(samples_weighted_bonferroni, run, decision_times_weighted_bonferroni, Nmax, procedure="weighted_bonferroni")
         for key, value in decision_times_weighted_bonferroni.items():
             avg_ttd_weighted_bonferroni[key] = avg_ttd_weighted_bonferroni.get(key, 0) + (Nmax if value == "N/A" else value)
@@ -493,7 +483,7 @@ def run_experiments(
 
         # Fixed sequence
         print("Running Fixed sequence individual tests for comparison...")
-        rejected_hypotheses_fixed, decision_times_fixed = graphical_test.fixed_multitest(
+        rejected_hypotheses_fixed, decision_times_fixed, hypotheses_correct_fixed = graphical_test.fixed_multitest(
             null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
         )
         _accumulate_samples(samples_fixed, run, decision_times_fixed, Nmax, procedure="fixed_sequence")
@@ -514,9 +504,10 @@ def run_experiments(
     # Compute and store partial rankings for all methods.
     # Each rejected (p0, p1) confirms p1 > p0; un-rejected pairs are incomparable.
     # Ranking key: net score = wins - losses (tiebroken by raw wins).
-    def _write_ranking(label, rejected_hyps, f):
+    def _write_ranking(label, rejected_hyps, f, hypotheses_correct=None):
         ranking, wins, losses, incomparable = get_partial_ranking(
-            rejected_hyps, null_hypotheses_policy_indices, n_policies
+            rejected_hyps, null_hypotheses_policy_indices, n_policies,
+            hypotheses_correct=hypotheses_correct,
         )
         n_total = len(null_hypotheses_policy_indices)
         n_confirmed = n_total - len(incomparable)
@@ -544,13 +535,13 @@ def run_experiments(
     with open(ranking_path, 'w') as f:
         f.write(f"Policy Rankings — N={Nmax}, n={n_prior}, alpha={alpha}, beta={beta}\n")
         f.write(f"Policies: {[policy_index[i] for i in range(n_policies)]}\n")
-        _write_ranking("Graphical (p-value, passive)",      rejected_hypotheses,                   f)
-        _write_ranking("E-value (passive)",                  rejected_hypotheses_evalues,           f)
-        _write_ranking("E-value (active)",                   rejected_hypotheses_evalues_active,    f)
-        _write_ranking("Active graphical (p-value)",         rejected_hypotheses_active,            f)
-        _write_ranking("Bonferroni",                         rejected_hypotheses_bonferroni,        f)
-        _write_ranking("Weighted Bonferroni",                rejected_hypotheses_weighted_bonferroni, f)
-        _write_ranking("Fixed sequence",                     rejected_hypotheses_fixed,             f)
+        _write_ranking("Graphical (p-value, passive)",       rejected_hypotheses,                    f, hypotheses_correct=hypotheses_correct)
+        _write_ranking("E-value (passive)",                  rejected_hypotheses_evalues,            f, hypotheses_correct=hypotheses_correct_evalues)
+        _write_ranking("E-value (active)",                   rejected_hypotheses_evalues_active,     f, hypotheses_correct=hypotheses_correct_evalues_active)
+        _write_ranking("Active graphical (p-value)",         rejected_hypotheses_active,             f, hypotheses_correct=hypotheses_correct_active)
+        _write_ranking("Bonferroni",                         rejected_hypotheses_bonferroni,         f, hypotheses_correct=hypotheses_correct_bonferroni)
+        _write_ranking("Weighted Bonferroni",                rejected_hypotheses_weighted_bonferroni, f, hypotheses_correct=hypotheses_correct_weighted_bonferroni)
+        _write_ranking("Fixed sequence",                     rejected_hypotheses_fixed,              f, hypotheses_correct=hypotheses_correct_fixed)
     print(f"\nPolicy rankings written to {ranking_path}")
 
     _average_dict(avg_ttd, n_runs)
@@ -561,7 +552,8 @@ def run_experiments(
     _average_dict(avg_ttd_fixed, n_runs)
     _average_dict(avg_ttd_weighted_bonferroni, n_runs)
 
-    with open(f'{results_dir}/sample_complexity_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
+    os.makedirs(f'{results_dir}/sample_complexity', exist_ok=True)
+    with open(f'{results_dir}/sample_complexity/sample_complexity_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
         for i in range(n_policies):
             g = np.mean([samples[run].get(i, 0) for run in range(n_runs)])
             eg = np.mean([samples_evalues[run].get(i, 0) for run in range(n_runs)])
@@ -573,7 +565,8 @@ def run_experiments(
             f.write(f"Policy {i}: Graphical={g:.2f}, EGraphical={eg:.2f}, EGraphicalActive={eg_active:.2f}, GraphicalActive={ag:.2f}, Bonferroni={b:.2f}, Fixed={fx:.2f}, Weighted_Bonferroni={wb:.2f}\n")
 
     n_hypotheses = len(null_hypotheses_policy_indices)
-    with open(f'{results_dir}/rejection_counts_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
+    os.makedirs(f'{results_dir}/rejection_counts', exist_ok=True)
+    with open(f'{results_dir}/rejection_counts/rejection_counts_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
         f.write(f"Total hypotheses: {n_hypotheses}\n")
         f.write("==============================\n")
         for method, counts in n_rejected_per_run.items():
@@ -590,21 +583,22 @@ def run_experiments(
         exchange_pvalue_matrix[p1_index_ex, p0_index] = p_values[i]
         exchange_alpha_matrix[p1_index_ex, p0_index] = alpha_per_hypothesis[i]
 
+    os.makedirs(f'{results_dir}/exchange_matrices', exist_ok=True)
     plot_heatmap(
         exchange_pvalue_matrix,
         title='Graphical Multitest: p-values for each hypothesis',
-        save_path=f'{results_dir}/graphical_multitest_pvalues_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/graphical_multitest_pvalues_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, fmt='.2e', figsize=figsize,
     )
     plot_heatmap(
         exchange_alpha_matrix,
         title='Graphical Multitest: alpha allocated for each hypothesis',
-        save_path=f'{results_dir}/graphical_multitest_alpha_allocation_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/graphical_multitest_alpha_allocation_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, fmt='.2e', figsize=figsize,
     )
 
-    np.save(f'{results_dir}/graphical_multitest_samples_per_policy_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', samples)
-    np.save(f'{results_dir}/bonferroni_multitest_samples_per_policy_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', samples_bonferroni)
+    np.save(f'{results_dir}/sample_complexity/graphical_multitest_samples_per_policy_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', samples)
+    np.save(f'{results_dir}/sample_complexity/bonferroni_multitest_samples_per_policy_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', samples_bonferroni)
 
     exchange_matrix_graphical = _fill_exchange_matrix(avg_ttd, n_policies)
     exchange_matrix_evalues = _fill_exchange_matrix(avg_ttd_evalues, n_policies)
@@ -643,25 +637,27 @@ def run_experiments(
         total_trials_saved_fs += trials_saved
         p1_index_ex = n_policies - 1 - p1_index
         exchange_matrix_saved[p1_index_ex, p0_index] = trials_saved
+        
 
-    np.save(f'{results_dir}/graphical_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_graphical)
-    np.save(f'{results_dir}/bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_bonferroni)
-    np.save(f'{results_dir}/weighted_bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_weighted_bonferroni)
-    np.save(f'{results_dir}/graphical_multitest_exchange_matrix_saved_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_saved)
-    np.save(f'{results_dir}/fixed_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_fixed)
-    np.save(f'{results_dir}/evalues_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_evalues)
-    np.save(f'{results_dir}/evalues_active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_evalues_active)
-    np.save(f'{results_dir}/active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_active)
+    os.makedirs(f'{results_dir}/exchange_matrices', exist_ok=True)
+    np.save(f'{results_dir}/exchange_matrices/graphical_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_graphical)
+    np.save(f'{results_dir}/exchange_matrices/bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_bonferroni)
+    np.save(f'{results_dir}/exchange_matrices/weighted_bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_weighted_bonferroni)
+    np.save(f'{results_dir}/exchange_matrices/graphical_multitest_exchange_matrix_saved_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_saved)
+    np.save(f'{results_dir}/exchange_matrices/fixed_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_fixed)
+    np.save(f'{results_dir}/exchange_matrices/evalues_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_evalues)
+    np.save(f'{results_dir}/exchange_matrices/evalues_active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_evalues_active)
+    np.save(f'{results_dir}/exchange_matrices/active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', exchange_matrix_active)
 
     if plot_from_saved:
-        exchange_matrix_saved = np.load(f'{results_dir}/graphical_multitest_exchange_matrix_saved_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
-        exchange_matrix_graphical = np.load(f'{results_dir}/graphical_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
-        exchange_matrix_bonferroni = np.load(f'{results_dir}/bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
-        exchange_matrix_weighted_bonferroni = np.load(f'{results_dir}/weighted_bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
-        exchange_matrix_fixed = np.load(f'{results_dir}/fixed_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
-        exchange_matrix_evalues = np.load(f'{results_dir}/evalues_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
-        exchange_matrix_evalues_active = np.load(f'{results_dir}/evalues_active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
-        exchange_matrix_active = np.load(f'{results_dir}/active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_saved = np.load(f'{results_dir}/exchange_matrices/graphical_multitest_exchange_matrix_saved_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_graphical = np.load(f'{results_dir}/exchange_matrices/graphical_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_bonferroni = np.load(f'{results_dir}/exchange_matrices/bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_weighted_bonferroni = np.load(f'{results_dir}/exchange_matrices/weighted_bonferroni_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_fixed = np.load(f'{results_dir}/exchange_matrices/fixed_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_evalues = np.load(f'{results_dir}/exchange_matrices/evalues_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_evalues_active = np.load(f'{results_dir}/exchange_matrices/evalues_active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
+        exchange_matrix_active = np.load(f'{results_dir}/exchange_matrices/active_multitest_exchange_matrix_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy')
         total_trials_saved_fs = np.sum(exchange_matrix_saved)
 
     print("Exchange matrix for graphical multitest (time to decision): ")
@@ -703,80 +699,75 @@ def run_experiments(
     plot_heatmap(
         exchange_matrix_saved,
         title=f'Graphical Multitest: Trials Saved ({total_trials_saved_fs:.2f}) Compared to Bonferroni',
-        save_path=f'{results_dir}/graphical_multitest_saved_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/graphical_multitest_saved_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
     plot_heatmap(
         exchange_matrix_graphical,
         title='Graphical Multitest: Time to Decision',
-        save_path=f'{results_dir}/graphical_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/graphical_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
     plot_heatmap(
         exchange_matrix_bonferroni,
         title='Bonferroni: Time to Decision',
-        save_path=f'{results_dir}/bonferroni_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/bonferroni_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
     plot_heatmap(
         exchange_matrix_weighted_bonferroni,
         title='Weighted Bonferroni: Time to Decision',
-        save_path=f'{results_dir}/weighted_bonferroni_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/weighted_bonferroni_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
     plot_heatmap(
         exchange_matrix_fixed,
         title='Fixed: Time to Decision',
-        save_path=f'{results_dir}/fixed_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/fixed_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
     plot_heatmap(
         exchange_matrix_evalues,
         title='E-Values Graphical: Time to Decision',
-        save_path=f'{results_dir}/graphical_evalues_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/evalues_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
     plot_heatmap(
         exchange_matrix_evalues_active,
         title='E-Values Active Graphical: Time to Decision',
-        save_path=f'{results_dir}/graphical_evalues_active_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/evalues_active_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
     plot_heatmap(
         exchange_matrix_active,
         title='Active Graphical (p-value): Time to Decision',
-        save_path=f'{results_dir}/graphical_active_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+        save_path=f'{results_dir}/exchange_matrices/active_multitest_ttd_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
         real_sim_means=real_sim_means, figsize=figsize,
     )
 
-def roboarena_experiment(cfg=None):
-    """Load roboarena data and return the generic inputs needed by main()."""
-    if cfg is None:
-        cfg = ExperimentConfig()
-    bernoulli = False
-    data_bins = ["data2"]
-    perfect_sim = True
-    selected_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
-
-    eval_results = get_real_evals(data_bins=data_bins, selected_policies=selected_policies)
-    get_policy_summary(eval_results)
-    Nmax_csv = min(len(v) for v in eval_results.values())
-    prior_evals, _ = split_eval(eval_results, Nmax_csv, nruns=cfg.n_prior)
-    policies = list(prior_evals.keys())
-
-    data_progress_filtered_truncated = load_all_data()
-    cols = [6, 0, 5, 3]
-    policy_data = {p: data_progress_filtered_truncated[:, cols[i]] for i, p in enumerate(policies)}
-
-    if perfect_sim:
-        sim_means = {p: np.mean(policy_data[p]) for p in policies}
-        real_means = {p: np.mean(policy_data[p]) for p in policies}
-    else:
-        _, real_evals = split_eval(eval_results, Nmax_csv, nruns=cfg.n_prior)
-        sim_means = {k: np.mean(prior_evals[k]) for k in policies}
-        real_means = {k: np.mean(real_evals[k]) for k in policies}
-
-    return policy_data, policies, sim_means, real_means, bernoulli
+    # CLD violin plots — one per testing method
+    progress_array_dict_cld = {
+        policy_index[i]: policy_data[:, i][~np.isnan(policy_data[:, i])]
+        for i in range(n_policies)
+    }
+    ttd_dicts_cld = {
+        "graphical":           {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd.items()},
+        "evalues":             {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_evalues.items()},
+        "evalues_active":      {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_evalues_active.items()},
+        "graphical_active":    {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_active.items()},
+        "bonferroni":          {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_bonferroni.items()},
+        "weighted_bonferroni": {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_weighted_bonferroni.items()},
+        "fixed":               {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_fixed.items()},
+    }
+    policy_names = [policy_index[i] for i in range(n_policies)]
+    make_violin_plots_from_ttds(
+        progress_array_dict=progress_array_dict_cld,
+        ttd_dicts=ttd_dicts_cld,
+        policies=policy_names,
+        labels=policy_names,
+        max_sample_size_per_model=Nmax,
+        output_dir=os.path.join(results_dir, "cld_violins"),
+    )
 
 
 def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None):
@@ -844,7 +835,7 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
 
     alpha_per_hypothesis = allocate_alpha(hyp_diffs, cfg.alpha, beta=cfg.beta)
     alpha_per_hypothesis_weighted_bonferroni = allocate_alpha(hyp_diffs, cfg.alpha, beta=-cfg.beta)
-
+    
     weighted_G = np.zeros((num_hypotheses, num_hypotheses))
     for k1, hyp1 in enumerate(null_hypotheses):
         neighboring_hypotheses = [neighbor[1] for neighbor in successor_neighbors[(k1, hyp1)]]
@@ -870,8 +861,3 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
         policy_index, real_sim_means, bernoulli,
         cfg=cfg,
     )
-
-if __name__ == '__main__':
-    cfg = ExperimentConfig()
-    policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
-    main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg)

@@ -14,6 +14,7 @@ from multitest.run_graphical_test import ExperimentConfig, main
 ########################################
 #### Data Loading and Preprocessing ####
 ########################################
+np.random.seed(42)
 
 SMALL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_data_small/LBM_DATA"
 FULL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_large/full_data"
@@ -46,7 +47,8 @@ def load_evals(df, panel, task, method, filename=None):
     ]
     trials = ast.literal_eval(evals["Success/Failure"].iloc[0])
     # convert bool to int
-    trials = np.array(trials).astype(int)
+    trials = np.array(trials).astype(int) # shuffle the trials to avoid any ordering effects
+    trials = np.random.permutation(trials)
     success_rate = np.mean(trials)
     tri_rank = evals["CLD_Letter"].iloc[0]
     return trials, success_rate, tri_rank
@@ -73,7 +75,7 @@ def experiment_A():
         sim_means[policy] = sim_success_rate
     return policy_data, real_means, sim_means
 
-def experiment_C(id=True, ood=False):
+def experiment_C(id=True, ood=False, distshift=None):
     # In distribution data 
     # Policies: Single task, LBM finetuned, LBM zeroshot
     # Task: PutKiwiInCenterOfTable
@@ -89,8 +91,11 @@ def experiment_C(id=True, ood=False):
         sim_panels = ["Fig2A_Sim_Seen_Nominal", "Fig2B_Sim_Seen_DistShift"]  
     
     hw_tasks = ["Aggregate - Hardware"]
-    dist_shift_hw_tasks = ["Aggregate - Distribution shift"]
-    station_hw_tasks = ["Aggregate - Novel station"]
+    if distshift == "distshift":
+        dist_shift_hw_tasks = ["Aggregate - Distribution shift"]
+    elif distshift == "novel":
+        hw_panels = ["Fig2A_HW_Seen_Nominal", "Fig2B_HW_Seen_NovelStation"]
+        dist_shift_hw_tasks = ["Aggregate - Novel station"]
     sim_tasks = ["Aggregate - Simulation"]
     base_policies = ["Single Task", "LBM finetuned", "LBM zeroshot"]
     sim_means = {}
@@ -100,12 +105,19 @@ def experiment_C(id=True, ood=False):
     for base_policy in base_policies:
         for hw_panel, sim_panel in zip(hw_panels, sim_panels):
             policy = f"{base_policy} ({hw_panel.split('_')[3]})"
-            trials, success_rate, tri_rank = load_evals(df, hw_panel, hw_tasks[0], base_policy)
+            if hw_panel.split('_')[3] == "DistShift" or hw_panel.split('_')[3] == "NovelStation":
+                try:
+                    trials, success_rate, tri_rank = load_evals(df, hw_panel, dist_shift_hw_tasks[0], base_policy)
+                except:
+                    breakpoint()
+            else:
+                trials, success_rate, tri_rank = load_evals(df, hw_panel, hw_tasks[0], base_policy)
+            
             policy_data[policy] = trials
             real_means[policy] = success_rate
             sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, sim_tasks[0], base_policy)
             sim_means[policy] = sim_success_rate
-            breakpoint()
+            
     return policy_data, real_means, sim_means
 
 def experiment_B(id = True, ood=False):
@@ -126,7 +138,6 @@ def experiment_B(id = True, ood=False):
     tasks = ["TurnMugRightsideUp"]
     base_policies = ["Single Task", "LBM finetuned", "LBM zeroshot"]
     
-
     sim_means = {}
     real_means = {}
     policy_data = {}
@@ -148,12 +159,15 @@ def run_graphical_experiment_A():
 
 def run_graphical_experiment_B(id=True, ood=False):
     policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
-    cfg = ExperimentConfig(alpha=0.1, beta=1, results_dir='outputs/lbm_graphical_test/experiment_B_id_{}_ood_{}'.format(id, ood))
+    cfg = ExperimentConfig(alpha=0.1, beta=0, results_dir='outputs/lbm_graphical_test/experiment_B_id_{}_ood_{}'.format(id, ood))
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
 
-def run_graphical_experiment_C(id=True, ood=False):
-    policy_data, real_means, sim_means = experiment_C(id=id, ood=ood)
-    cfg = ExperimentConfig(alpha=0.1, beta=25, results_dir='outputs/lbm_graphical_test/experiment_C_id_{}_ood_{}'.format(id, ood))
+def run_graphical_experiment_C(id=True, ood=False, distshift=None):
+    policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
+    # Print the number of evals per policy:
+    for policy, trials in policy_data.items():
+        print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
+    cfg = ExperimentConfig(alpha=0.1, beta=1, results_dir='outputs/lbm_graphical_test/experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift))
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
 
     
@@ -162,7 +176,8 @@ if __name__ == "__main__":
     full_data_csv = os.path.join(FULL_DATA_DIR, "Fig2.csv")
     df = load_full_data(full_data_csv)
     trials, success_rate, tri_rank = load_evals(df, "Fig2A_HW_Seen_Nominal", "PutKiwiInCenterOfTable", "Single Task")
-    policy_data, real_means, sim_means = experiment_A()
+    # policy_data, real_means, sim_means = experiment_A()
     # run_graphical_experiment_A()
-    run_graphical_experiment_C(id=True, ood=True)
+    # run_graphical_experiment_B(id=True, ood=True)
+    run_graphical_experiment_C(id=True, ood=True, distshift="novel")
     

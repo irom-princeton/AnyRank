@@ -379,8 +379,8 @@ class SequentialGraphicalTest:
         # Active sampling scheme
         iters = int(0)
         Tmax = num_policies * Nmax + 1
-        hyp_completed_vs_time = np.zeros(Tmax)
-        while np.min(hypotheses_completed) <= 0.5:
+        hyp_completed_vs_time = np.zeros(Tmax+1)
+        while np.min(hypotheses_completed) <= 0.5 and iters < Tmax:
             # Get all rejected indices
             all_rejected = [i for i in range(num_hypotheses) if i in rejected]
             
