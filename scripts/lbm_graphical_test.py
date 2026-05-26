@@ -10,14 +10,21 @@ from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESe
 import pandas as pd
 import ast
 from multitest.run_graphical_test import ExperimentConfig, main
+from pathlib import Path
 
 ########################################
 #### Data Loading and Preprocessing ####
 ########################################
 np.random.seed(42)
 
-SMALL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_data_small/LBM_DATA"
-FULL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_large/full_data"
+# SMALL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_data_small/LBM_DATA"
+# FULL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_large/full_data"
+
+# Directory containing the current Python file
+ROOT = Path(__file__).resolve().parent
+
+SMALL_DATA_DIR = ROOT / "data" / "lbm_data_small" / "LBM_DATA"
+FULL_DATA_DIR = ROOT / "data" / "lbm_large" / "full_data"
 
 def load_small_data():
     subfolders = [f for f in os.listdir(SMALL_DATA_DIR) if os.path.isdir(os.path.join(SMALL_DATA_DIR, f))]
@@ -152,32 +159,46 @@ def experiment_B(id = True, ood=False):
             sim_means[policy] = sim_success_rate
     return policy_data, real_means, sim_means
 
-def run_graphical_experiment_A():
+def run_graphical_experiment_A(beta=1):
     policy_data, real_means, sim_means = experiment_A()
-    cfg = ExperimentConfig(alpha=0.1, beta=1, results_dir='outputs/lbm_graphical_test/experiment_A')
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir='outputs/lbm_graphical_test/experiment_A')
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
 
-def run_graphical_experiment_B(id=True, ood=False):
+def run_graphical_experiment_B(id=True, ood=False, beta=1):
     policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
-    cfg = ExperimentConfig(alpha=0.1, beta=0, results_dir='outputs/lbm_graphical_test/experiment_B_id_{}_ood_{}'.format(id, ood))
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir='outputs/lbm_graphical_test/experiment_B_id_{}_ood_{}'.format(id, ood))
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
 
-def run_graphical_experiment_C(id=True, ood=False, distshift=None):
+def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1):
     policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
     # Print the number of evals per policy:
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
-    cfg = ExperimentConfig(alpha=0.1, beta=1, results_dir='outputs/lbm_graphical_test/experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift))
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir='outputs/lbm_graphical_test/experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift))
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
 
     
 if __name__ == "__main__":
-    # small_data, small_means = load_small_data()
-    full_data_csv = os.path.join(FULL_DATA_DIR, "Fig2.csv")
-    df = load_full_data(full_data_csv)
-    trials, success_rate, tri_rank = load_evals(df, "Fig2A_HW_Seen_Nominal", "PutKiwiInCenterOfTable", "Single Task")
-    # policy_data, real_means, sim_means = experiment_A()
+    df = load_full_data(FULL_DATA_DIR / "lbm_full_data.csv")    
+
+    ### Experiment A: In-distribution performance comparison
     # run_graphical_experiment_A()
-    # run_graphical_experiment_B(id=True, ood=True)
-    run_graphical_experiment_C(id=True, ood=True, distshift="novel")
+
+    ### Experiment B: In-distribution performance comparison
+    # run_graphical_experiment_B(id=True, ood=False) # ID only
+
+    ### Experiment C: In-distribution performance comparison
+    # run_graphical_experiment_C(id=True, ood=False, distshift=None) # ID only
+
+    ### Experiment B: Out-of-distribution performance comparison
+    # run_graphical_experiment_B(id=False, ood=True) # OOD only
+
+    ### Experiment B: Out-of-distribution and nominal performance comparison
+    # run_graphical_experiment_B(id=True, ood=True) # ID and O
+
+    ### Experiment C: Out-of-distribution objects and nominal performance comparison
+    # run_graphical_experiment_C(id=True, ood=True, distshift="distshift") # ID and OOD with distribution shift
+
+    ### Experiment C: Out-of-distribution stations and nominal performance comparison 
+    run_graphical_experiment_C(id=True, ood=True, distshift="novel") # ID and OOD with novel station
     
