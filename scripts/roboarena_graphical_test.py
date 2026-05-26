@@ -25,6 +25,7 @@ from multitest.run_graphical_test import (
     main,
 )
 
+np.random.seed(42)
 
 def get_real_evals(data_bins=["data1"], selected_policies=[]):
     """
@@ -106,24 +107,31 @@ def roboarena_experiment(cfg=None):
         cfg = ExperimentConfig()
     bernoulli = False
     data_bins = ["data2"]
-    perfect_sim = True
+    perfect_sim = False
     selected_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
+    policy_data = get_real_evals(data_bins=data_bins, selected_policies=selected_policies)
 
-    eval_results = get_real_evals(data_bins=data_bins, selected_policies=selected_policies)
-    get_policy_summary(eval_results)
-    Nmax_csv = min(len(v) for v in eval_results.values())
-    prior_evals, _ = split_eval(eval_results, Nmax_csv, nruns=cfg.n_prior)
+    # shuffle data for each policy
+    # for k in policy_data.keys():
+    #     np.random.shuffle(policy_data[k])
+
+    get_policy_summary(policy_data)
+    Nmax_csv = min(len(v) for v in policy_data.values())
+    prior_evals, _ = split_eval(policy_data, Nmax_csv, nruns=cfg.n_prior)
     policies = list(prior_evals.keys())
-
-    data_progress_filtered_truncated = load_all_data()
-    cols = [6, 0, 5, 3]
-    policy_data = {p: data_progress_filtered_truncated[:, cols[i]] for i, p in enumerate(policies)}
+    breakpoint()
+    
+    # data dump 1:
+    # data_progress_filtered_truncated = load_all_data()
+    # cols = [6, 0, 5, 3]
+    # policy_data = {p: data_progress_filtered_truncated[:, cols[i]] for i, p in enumerate(policies)}
+    # breakpoint()
 
     if perfect_sim:
         sim_means = {p: np.mean(policy_data[p]) for p in policies}
         real_means = {p: np.mean(policy_data[p]) for p in policies}
     else:
-        _, real_evals = split_eval(eval_results, Nmax_csv, nruns=cfg.n_prior)
+        _, real_evals = split_eval(policy_data, Nmax_csv, nruns=cfg.n_prior)
         sim_means = {k: np.mean(prior_evals[k]) for k in policies}
         real_means = {k: np.mean(real_evals[k]) for k in policies}
 
@@ -131,6 +139,6 @@ def roboarena_experiment(cfg=None):
 
 
 if __name__ == '__main__':
-    cfg = ExperimentConfig()
+    cfg = ExperimentConfig(beta=1, results_dir='outputs/roboarena_graphical_test')
     policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
     main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg)

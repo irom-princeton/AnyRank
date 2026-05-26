@@ -55,7 +55,7 @@ def load_evals(df, panel, task, method, filename=None):
     trials = ast.literal_eval(evals["Success/Failure"].iloc[0])
     # convert bool to int
     trials = np.array(trials).astype(int) # shuffle the trials to avoid any ordering effects
-    trials = np.random.permutation(trials)
+    # trials = np.random.permutation(trials)
     success_rate = np.mean(trials)
     tri_rank = evals["CLD_Letter"].iloc[0]
     return trials, success_rate, tri_rank
