@@ -170,7 +170,7 @@ if __name__ == '__main__':
             "paligemma_diffusion_droid",
             "pi0_fast_droid"]
     
-    exp_name = "test_fixed_sequence"  # options: "roboarena4", "roboarena7", "roboarena4_wm_prior", "roboarena7_wm_prior", "test_fixed_sequence"
+    exp_name = "roboarena7_wm_prior"  # options: "roboarena4", "roboarena7", "roboarena4_wm_prior", "roboarena7_wm_prior", "test_fixed_sequence"
 
     ## RoboArena 4 with 20 heldout evals per policy
     if exp_name == "roboarena4":
@@ -202,7 +202,7 @@ if __name__ == '__main__':
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg)
 
     if exp_name == "test_fixed_sequence":
-        beta = 1000
+        beta = 100
         test_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=f'outputs/{exp_name}')
         policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=test_cfg)
         main(policy_data, policies, sim_means, real_means, bernoulli, cfg=test_cfg)

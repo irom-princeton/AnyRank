@@ -21,7 +21,7 @@ np.random.seed(42)
 # FULL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_large/full_data"
 
 # Directory containing the current Python file
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 SMALL_DATA_DIR = ROOT / "data" / "lbm_data_small" / "LBM_DATA"
 FULL_DATA_DIR = ROOT / "data" / "lbm_large" / "full_data"
@@ -179,26 +179,28 @@ def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1):
 
     
 if __name__ == "__main__":
-    df = load_full_data(FULL_DATA_DIR / "lbm_full_data.csv")    
+    df = load_full_data(FULL_DATA_DIR / "Fig2.csv")    
+    beta_range = [0, 1, 5, 10, 25, 50, 100]
 
-    ### Experiment A: In-distribution performance comparison
-    # run_graphical_experiment_A()
+    for beta in beta_range:
+    ## Experiment A: In-distribution performance comparison
+        run_graphical_experiment_A(beta=beta)
 
-    ### Experiment B: In-distribution performance comparison
-    # run_graphical_experiment_B(id=True, ood=False) # ID only
+        ## Experiment B: In-distribution performance comparison
+        run_graphical_experiment_B(id=True, ood=False, beta=beta) # ID only
 
-    ### Experiment C: In-distribution performance comparison
-    # run_graphical_experiment_C(id=True, ood=False, distshift=None) # ID only
+        ## Experiment C: In-distribution performance comparison
+        run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=beta) # ID only
 
-    ### Experiment B: Out-of-distribution performance comparison
-    # run_graphical_experiment_B(id=False, ood=True) # OOD only
+        ## Experiment B: Out-of-distribution performance comparison
+        run_graphical_experiment_B(id=False, ood=True, beta=beta) # OOD only
 
-    ### Experiment B: Out-of-distribution and nominal performance comparison
-    # run_graphical_experiment_B(id=True, ood=True) # ID and O
+        ## Experiment B: Out-of-distribution and nominal performance comparison
+        run_graphical_experiment_B(id=True, ood=True, beta=beta) # ID and O
 
-    ### Experiment C: Out-of-distribution objects and nominal performance comparison
-    # run_graphical_experiment_C(id=True, ood=True, distshift="distshift") # ID and OOD with distribution shift
+        ## Experiment C: Out-of-distribution objects and nominal performance comparison
+        run_graphical_experiment_C(id=True, ood=True, distshift="distshift", beta=beta) # ID and OOD with distribution shift
 
-    ### Experiment C: Out-of-distribution stations and nominal performance comparison 
-    run_graphical_experiment_C(id=True, ood=True, distshift="novel") # ID and OOD with novel station
-    
+        ## Experiment C: Out-of-distribution stations and nominal performance comparison 
+        run_graphical_experiment_C(id=True, ood=True, distshift="novel", beta=beta) # ID and OOD with novel station
+        

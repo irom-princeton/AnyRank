@@ -137,11 +137,9 @@ class SequentialGraphicalTest:
         after rejecting hypothesis i.
         """
         p = np.asarray(p_values, dtype=float)
-
         rejected: Set[int] = set()
-        alpha_at_rejected = []
         graphs_over_time = []
-
+        alpha_at_rejected = []
         assert len(p) == self.num_hypotheses, "Mismatch in the number of hypotheses"
         if np.any(p < 0) or np.any(p > 1):
             raise ValueError("All p-values must lie in [0, 1].")
@@ -164,14 +162,6 @@ class SequentialGraphicalTest:
             alpha_at_rejected.append(copy.deepcopy(self.alpha[i]))
             active = [j for j in range(self.num_hypotheses) if j not in rejected]
 
-            if verbose:
-                # Rejecting candidate i:
-                print("============================================================")
-                print(f"Rejecting hypothesis H{i} with p-value {p[i]:.4e} <= alpha {self.alpha[i]:.4e}")
-                print(f"Before rejection: ")
-                print("Graph G: \n", self.G, "\n")
-                print("alpha budgets: ", self.alpha, "\n")
-            
             # Update delta_j
             new_alpha = np.zeros_like(self.alpha)
             for j in active:
@@ -192,24 +182,134 @@ class SequentialGraphicalTest:
                     #         f"Denominator became zero while updating edge ({k}, {j}). "
                     #         "Check whether the graph satisfies the needed conditions."
                     #     )
-                    
-                    if denom > 1e-8: 
+
+                    if denom > 0.0: 
                         new_G[k, j] = (self.G[k, j] + self.G[k, i] * self.G[i, j]) / denom
                     else:
-                        breakpoint()
                         new_G[k, j] = 0.0
-                    
-                    breakpoint()
+
                     if new_G[k, j] > 1.1 or new_G[k, j] < 0.0:
                         breakpoint()
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
-            
-            print(f"After rejecting H{i}: ")
-            print("Graph G: \n", self.G, "\n")
-            print("alpha budgets: ", self.alpha, "\n")
-            print("============================================================\n")
         return rejected, graphs_over_time, alpha_at_rejected
+    
+    # def debug_sequential_graphical_test(self, p_values:Sequence[float], prev_rejected:set[int]=set(), verbose=False) -> Tuple[Set[int], np.ndarray, np.ndarray]:
+    #     """
+    #     Parameters
+    #     ----------
+    #     p_values : sequence of float, length N
+    #         The p-values p_1, ..., p_N.
+
+    #     Returns
+    #     -------
+    #     rejected : set[int]
+    #         Set of rejected hypothesis indices, using 0-based indexing.
+    #     delta : np.ndarray
+    #         Final local error budgets after all updates.
+    #     G : np.ndarray
+    #         Final graph after all updates.
+
+    #     Notes
+    #     -----
+    #     This implements the paper's update:
+    #         delta_j <- delta_j + delta_i * g_{i,j}     for lambda_j not in rejected and j != i
+    #         delta_j <- 0                               otherwise
+
+    #         g_{k,j} <- (g_{k,j} + g_{k,i} * g_{i,j}) / (1 - g_{j,i} * g_{i,j})
+    #                 for lambda_k, lambda_j not in rejected and k != j
+    #         g_{k,j} <- 0 otherwise
+
+    #     after rejecting hypothesis i.
+    #     """
+    #     rejected = set()
+    #     for p in prev_rejected:
+    #         rejected.add(p)
+    #     p = np.asarray(p_values, dtype=float)
+    #     alpha_tol = 1e-8
+    #     alpha_at_rejected = []
+    #     graphs_over_time = []
+
+    #     assert len(p) == self.num_hypotheses, "Mismatch in the number of hypotheses"
+    #     if np.any(p < 0) or np.any(p > 1):
+    #         raise ValueError("All p-values must lie in [0, 1].")
+
+    #     while True:
+    #         candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p[i] <= self.alpha[i] and self.alpha[i] > alpha_tol]
+    #         if not candidates:
+    #             break
+            
+    #         # Plot graphs:
+    #         graphs_over_time.append(self.plot_graph())
+            
+    #         if verbose:
+    #             print(self.G)
+            
+    #         # Choose any i such that p_i <= delta_i"
+    #         i = candidates[0]
+    #         # Reject i
+    #         rejected.add(i)
+    #         alpha_at_rejected.append(copy.deepcopy(self.alpha[i]))
+    #         active = [j for j in range(self.num_hypotheses) if j not in rejected]
+    #         print(f"P-values: {p}", "Alpha budgets: ", self.alpha, "Active hypotheses: ", active)
+
+    #         if verbose:
+    #             # Rejecting candidate i:
+    #             print("============================================================")
+    #             print(f"Rejecting hypothesis H{i} with p-value {p[i]:.4e} <= alpha {self.alpha[i]:.4e}")
+    #             print(f"Before rejection: ")
+                
+    #             # print("Graph G: \n", self.G, "\n")
+    #             # print("alpha budgets: ", self.alpha, "\n")
+            
+    #         # Update delta_j
+    #         new_alpha = np.zeros_like(self.alpha)
+    #         print("i: ", i, "alpha[i]: ", self.alpha[i], "G[i]: ", self.G[i, :], "\n")
+    #         for j in active:
+    #             new_alpha[j] = self.alpha[j] + self.alpha[i] * self.G[i, j]
+    #             if new_alpha[j] < alpha_tol:
+    #                 new_alpha[j] = 0.0
+    #         print("new_alpha: ", new_alpha, "\n")
+
+    #         # Update G:
+    #         new_G = np.zeros_like(self.G)
+    #         for k in active:
+    #             for j in active:
+    #                 if k == j:
+    #                     new_G[k, j] = 0.0
+    #                     continue
+                    
+    #                 prod = self.G[k, i] * self.G[i, k]
+    #                 denom = 1 - prod
+    #                 # if prod > 1 - 1e-6:
+    #                 #     denom+=1e-6
+    #                 #     print("near cycle:", {"i": i, "k": k, "prod": prod, "denom": denom})
+                        
+    #                 new_G[k, j] = (self.G[k, j] + self.G[k, i] * self.G[i, j]) / denom
+
+    #                 if denom > 1e-8: 
+    #                     new_G[k, j] = (self.G[k, j] + self.G[k, i] * self.G[i, j]) / denom
+    #                 else:
+    #                     new_G[k, j] = 0.0
+                    
+    #                 if new_G[k, j] > 1.1 or new_G[k, j] < 0.0:
+    #                     breakpoint()
+    #             print(f"Rejected H{i} -> Updated G row {k}: ", new_G[k, :])
+            
+    #         print("alpha budgets (before update): ", self.alpha, "\n")
+    #         print("P-values: ", p, "\n")
+
+    #         self.alpha = copy.deepcopy(new_alpha)
+    #         self.G = copy.deepcopy(new_G)
+
+    #         print("All rejected hypotheses so far: ", rejected)
+    #         print("Sum: ", np.sum(new_G, axis=1))
+    #         print(f"After rejecting H{i}: ")
+    #         # print("Graph G: \n", self.G, "\n")
+    #         print("alpha budgets (after update): ", self.alpha, "\n")
+    #         breakpoint()
+    #         print("============================================================\n")
+    #     return rejected, graphs_over_time, alpha_at_rejected
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
         nonparametric_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
@@ -454,13 +554,15 @@ class SequentialGraphicalTest:
                         continue
                     nsm_test = tests[i]
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
-                    p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
                     if nsm_result.decision == Decision.AcceptAlternative:
                         hypotheses_correct[i] = 1.0 
                     elif nsm_result.decision == Decision.AcceptNull:
                         hypotheses_correct[i] = -1.0
                     
                     p_values[i] = nsm_test._p_value # Assuming the test result contains the p-value in info dictionary
+                    # if i == 2 and rejected == [0,1]:
+                    #     print("Trials: ", k, "data0: ", data0[k], "data1: ", data1[k], "NSM Result: ", nsm_result, "\n")
+                    #     breakpoint()
 
                     if verbose:
                         if k % 50 == 0:
@@ -486,10 +588,9 @@ class SequentialGraphicalTest:
 
             candidates = [i for i in range(self.num_hypotheses) if i not in rejected and p_values[i] <= self.alpha[i]]
             if verbose:
-                print(f"At time {k}, p-values: {p_values}, alpha: {self.alpha}, candidates for rejection: {candidates}")
+                print(f"At time {k}, p-values: {p_values}, alpha: {self.alpha}, candidates for rejection: {candidates}, collected data for all not in {rejected}")
 
             if len(candidates) > 0:
-                breakpoint()
                 # Plot graphs:
                 rejected_at_k, graph_over_time, new_alpha_at_rejected = self.sequential_graphical_test(p_values, verbose=False)
                 graphs_over_time.extend(graph_over_time)

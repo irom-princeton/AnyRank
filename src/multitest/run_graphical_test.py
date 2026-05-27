@@ -843,6 +843,180 @@ def run_experiments(
         )
 
 
+def soft_masked_graph(ordered_null_hypotheses, cfg, forward_fraction=0.9):
+    """
+    Build a weight matrix that sends most alpha forward (to harder-to-detect
+    hypotheses later in the ordering) and a small fraction backward.
+
+    forward_fraction controls the total share of weight assigned to forward
+    edges when both forward and backward neighbors exist.  Within each group
+    weights are proportional to allocate_weights (larger mean gaps get more).
+    Edge hypotheses (no forward or no backward neighbors) receive all weight
+    in the available direction.
+    """
+    num_hypotheses = len(ordered_null_hypotheses)
+    weighted_G = np.zeros((num_hypotheses, num_hypotheses))
+
+    for k1 in range(num_hypotheses):
+        forward_neighbors = [(k2, ordered_null_hypotheses[k2]) for k2 in range(k1 + 1, num_hypotheses)]
+        backward_neighbors = [(k2, ordered_null_hypotheses[k2]) for k2 in range(0, k1)]
+
+        fwd_diffs = [abs(mu1 - mu0) for _, (mu0, mu1) in forward_neighbors]
+        bwd_diffs = [abs(mu1 - mu0) for _, (mu0, mu1) in backward_neighbors]
+
+        if forward_neighbors and backward_neighbors:
+            fwd_weights = np.asarray(allocate_weights(fwd_diffs, beta=cfg.beta)) * forward_fraction
+            bwd_weights = np.asarray(allocate_weights(bwd_diffs, beta=cfg.beta)) * (1.0 - forward_fraction)
+        elif forward_neighbors:
+            fwd_weights = np.asarray(allocate_weights(fwd_diffs, beta=cfg.beta))
+            bwd_weights = np.array([])
+        else:
+            fwd_weights = np.array([])
+            bwd_weights = np.asarray(allocate_weights(bwd_diffs, beta=cfg.beta))
+
+        for idx, (k2, _) in enumerate(forward_neighbors):
+            weighted_G[k1, k2] = fwd_weights[idx]
+        for idx, (k2, _) in enumerate(backward_neighbors):
+            weighted_G[k1, k2] = bwd_weights[idx]
+
+    return weighted_G
+
+def fully_connected_graph(ordered_null_hypotheses, cfg):
+    num_hypotheses = len(ordered_null_hypotheses)
+    successor_neighbors = {
+        (hyp_idx, hyp): [
+            (other_hyp_idx, other_hyp)
+            for other_hyp_idx, other_hyp in enumerate(ordered_null_hypotheses)
+            if hyp_idx != other_hyp_idx
+        ]
+        for hyp_idx, hyp in enumerate(ordered_null_hypotheses)
+    }
+
+    with open(os.path.join(cfg.results_dir, 'successor_neighbors.txt'), 'w') as f:
+        for key, neighbors in successor_neighbors.items():
+            f.write(f"{key}: {neighbors}\n")
+
+    weighted_G = np.zeros((num_hypotheses, num_hypotheses))
+    for k1, hyp1 in enumerate(ordered_null_hypotheses):
+        neighboring_hypotheses = [neighbor[1] for neighbor in successor_neighbors[(k1, hyp1)]]
+        neighbor_diffs = [abs(mu1 - mu0) for (mu0, mu1) in neighboring_hypotheses]
+        weights_hyp1 = allocate_weights(neighbor_diffs, beta=cfg.beta)
+        sig_weights = len([w for w in weights_hyp1 if w > 1e-3])
+        
+        if sig_weights > 1:
+            print(f"Hypothesis {k1} (mu0={hyp1[0]:.2f}, mu1={hyp1[1]:.2f}) has {sig_weights} significant neighbors with weights: {weights_hyp1}")
+            
+        print(f"Null hypothesis {k1} (mu0={hyp1[0]:.2f}, mu1={hyp1[1]:.2f}):")
+        print(np.array2string(weights_hyp1, precision=3, suppress_small=True,))
+        for idx, (k2, _) in enumerate(successor_neighbors[(k1, hyp1)]):
+            weighted_G[k1, k2] = weights_hyp1[idx]
+    return weighted_G
+
+def visualize_weighted_graph(weighted_G, ordered_null_hypotheses, save_path=None,
+                             figsize=(14, 6), weight_threshold=1e-3):
+    """
+    Draw weighted_G as a directed graph with hypotheses arranged left-to-right
+    in their ordering (index 0 = largest mean gap, last = smallest).
+
+    Forward edges (j > i, alpha flowing to harder hypotheses) are drawn in blue
+    above the node line; backward edges are drawn in red below it.  Edge
+    thickness is proportional to weight.  Only edges above weight_threshold
+    are shown.
+    """
+    import networkx as nx
+
+    num_h = len(ordered_null_hypotheses)
+    G = nx.DiGraph()
+    for i in range(num_h):
+        G.add_node(i)
+
+    forward_edges, backward_edges = [], []
+    edge_weights = {}
+    for i in range(num_h):
+        for j in range(num_h):
+            w = weighted_G[i, j]
+            if w > weight_threshold:
+                G.add_edge(i, j, weight=w)
+                edge_weights[(i, j)] = w
+                (forward_edges if j > i else backward_edges).append((i, j))
+
+    # Linear layout: hypothesis index maps directly to x-position
+    pos = {i: (i, 0.0) for i in range(num_h)}
+    node_labels = {
+        i: f"H{i}\n({mu0:.2f},{mu1:.2f})"
+        for i, (mu0, mu1) in enumerate(ordered_null_hypotheses)
+    }
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    nx.draw_networkx_nodes(G, pos, node_color='lightsteelblue', node_size=900, ax=ax)
+    nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=7, ax=ax)
+
+    max_w = max(edge_weights.values()) if edge_weights else 1.0
+
+    if forward_edges:
+        fwd_w = [edge_weights[e] / max_w * 6 for e in forward_edges]
+        nx.draw_networkx_edges(
+            G, pos, edgelist=forward_edges, width=fwd_w,
+            edge_color='steelblue', alpha=0.75, ax=ax,
+            connectionstyle='arc3,rad=-0.35', arrows=True,
+            arrowsize=15, min_source_margin=20, min_target_margin=20,
+        )
+
+    if backward_edges:
+        bwd_w = [edge_weights[e] / max_w * 6 for e in backward_edges]
+        nx.draw_networkx_edges(
+            G, pos, edgelist=backward_edges, width=bwd_w,
+            edge_color='tomato', alpha=0.75, ax=ax,
+            connectionstyle='arc3,rad=0.35', arrows=True,
+            arrowsize=15, min_source_margin=20, min_target_margin=20,
+        )
+
+    # Label edges with weight values
+    edge_label_dict = {e: f"{edge_weights[e]:.2f}" for e in edge_weights}
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_label_dict, font_size=6, ax=ax)
+
+    ax.set_title(
+        "Weighted Transition Graph  (blue = forward, red = backward)\n"
+        "Node ordering: H0 = largest mean gap → last = smallest",
+        fontsize=11,
+    )
+    ax.axis('off')
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"Graph saved to {save_path}")
+        matrix_path = os.path.splitext(save_path)[0] + '.npy'
+        np.save(matrix_path, weighted_G)
+        print(f"Weight matrix saved to {matrix_path}")
+
+        # Heatmap of the weight matrix
+        heatmap_path = os.path.splitext(save_path)[0] + '_heatmap.png'
+        tick_labels = [f"H{i}\n({mu0:.2f},{mu1:.2f})" for i, (mu0, mu1) in enumerate(ordered_null_hypotheses)]
+        fig2, ax2 = plt.subplots(figsize=figsize)
+        im = ax2.imshow(weighted_G, cmap='Blues', vmin=0, vmax=1)
+        fig2.colorbar(im, ax=ax2, label='weight')
+        ax2.set_xticks(range(num_h))
+        ax2.set_yticks(range(num_h))
+        ax2.set_xticklabels(tick_labels, fontsize=7)
+        ax2.set_yticklabels(tick_labels, fontsize=7)
+        ax2.set_xlabel("Target hypothesis (j)", fontsize=10)
+        ax2.set_ylabel("Source hypothesis (i)", fontsize=10)
+        ax2.set_title("weighted_G: alpha transfer weights\n(row i → weight sent to column j)", fontsize=11)
+        for i in range(num_h):
+            for j in range(num_h):
+                ax2.text(j, i, f"{weighted_G[i, j]:.2f}", ha='center', va='center', fontsize=6,
+                         color='white' if weighted_G[i, j] > 0.5 else 'black')
+        plt.tight_layout()
+        plt.savefig(heatmap_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"Heatmap saved to {heatmap_path}")
+    else:
+        plt.show()
+
+
 def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None):
     """
     Main function to run experiments.
@@ -903,35 +1077,11 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
     alpha_per_hypothesis = allocate_alpha(ordered_hyp_diffs, cfg.alpha, beta=cfg.beta)
     alpha_per_hypothesis_weighted_bonferroni = allocate_alpha(ordered_hyp_diffs, cfg.alpha, beta=-cfg.beta)
     
+    # Fully connected graph
+    weighted_G_full = fully_connected_graph(ordered_null_hypotheses, cfg)
 
-    successor_neighbors = {
-        (hyp_idx, hyp): [
-            (other_hyp_idx, other_hyp)
-            for other_hyp_idx, other_hyp in enumerate(ordered_null_hypotheses)
-            if hyp_idx != other_hyp_idx
-        ]
-        for hyp_idx, hyp in enumerate(ordered_null_hypotheses)
-    }
-
-    with open(os.path.join(cfg.results_dir, 'successor_neighbors.txt'), 'w') as f:
-        for key, neighbors in successor_neighbors.items():
-            f.write(f"{key}: {neighbors}\n")
-
-    weighted_G = np.zeros((num_hypotheses, num_hypotheses))
-    for k1, hyp1 in enumerate(ordered_null_hypotheses):
-        neighboring_hypotheses = [neighbor[1] for neighbor in successor_neighbors[(k1, hyp1)]]
-        neighbor_diffs = [abs(mu1 - mu0) for (mu0, mu1) in neighboring_hypotheses]
-        weights_hyp1 = allocate_weights(neighbor_diffs, beta=cfg.beta)
-        sig_weights = len([w for w in weights_hyp1 if w > 1e-3])
-        
-        if sig_weights > 1:
-            print(f"Hypothesis {k1} (mu0={hyp1[0]:.2f}, mu1={hyp1[1]:.2f}) has {sig_weights} significant neighbors with weights: {weights_hyp1}")
-            
-        print(f"Null hypothesis {k1} (mu0={hyp1[0]:.2f}, mu1={hyp1[1]:.2f}):")
-        print(np.array2string(weights_hyp1, precision=3, suppress_small=True,))
-        for idx, (k2, _) in enumerate(successor_neighbors[(k1, hyp1)]):
-            weighted_G[k1, k2] = weights_hyp1[idx]
-
+    # Soft-masked graph (forward edges weighted by mean gap, backward edges allowed but penalized)
+    weighted_G = soft_masked_graph(ordered_null_hypotheses, cfg)
     for i in range(len(weighted_G)):
         assert abs(sum(weighted_G[i]) - 1) <= 1e-3
 
@@ -942,7 +1092,6 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
             print(line.strip())
             f.write(line)
 
-    breakpoint()
     run_experiments(
         n_policies, ordered_hypotheses,
         policy_matrix, Nmax, alpha_per_hypothesis,
