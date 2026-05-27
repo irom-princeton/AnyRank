@@ -4,6 +4,7 @@ Apurva Badithela, Mar 16, 2026
 To find the upper bound on expected efficiency gains from fixed sequence testing
 '''
 
+import argparse
 import numpy as np
 import os
 import copy
@@ -141,7 +142,7 @@ def roboarena_experiment(selected_policies = None, cfg=None):
     get_policy_summary(policy_data)
     Nmax_csv = min(len(v) for v in policy_data.values())
     policies = list(policy_data.keys())
-    
+
     # data dump 1:
     # data_progress_filtered_truncated = load_all_data()
     # cols = [6, 0, 5, 3]
@@ -155,11 +156,20 @@ def roboarena_experiment(selected_policies = None, cfg=None):
         prior_evals, real_evals = split_eval(policy_data, Nmax_csv, nruns=cfg.n_prior)
         sim_means = {k: np.mean(prior_evals[k]) for k in policies}
         real_means = {k: np.mean(real_evals[k]) for k in policies}
-
     return policy_data, policies, sim_means, real_means, bernoulli
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/<exp_name>/")
+    parser.add_argument("--exp_name", type=str, default="roboarena7_wm_prior",
+                        choices=["roboarena4", "roboarena7", "roboarena4_wm_prior", "roboarena7_wm_prior", "test_fixed_sequence"],
+                        help="Experiment to run")
+    parser.add_argument("--graph_type", type=str, default="soft_masked",
+                        choices=["soft_masked", "fully_connected"],
+                        help="Graph type for alpha transfer weights")
+    args = parser.parse_args()
+
     beta_range = [0, 1, 5, 10, 25, 50]
     four_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
     seven_policies = ["paligemma_binning_droid",
@@ -169,40 +179,52 @@ if __name__ == '__main__':
             "paligemma_fast_droid",
             "paligemma_diffusion_droid",
             "pi0_fast_droid"]
-    
-    exp_name = "roboarena7_wm_prior"  # options: "roboarena4", "roboarena7", "roboarena4_wm_prior", "roboarena7_wm_prior", "test_fixed_sequence"
 
+    plot_policy_names = {
+        "paligemma_binning_droid":        "PG-Bin",
+        "paligemma_diffusion_droid":      "PG-Diff",
+        "paligemma_vq_droid":             "PG-VQ",
+        "paligemma_fast_droid":           "PG-Fast",
+        "paligemma_fast_specialist_droid": "PG-Fast-Spec",
+        "pi0_droid":                      r"$\pi_0$",
+        "pi0_fast_droid":                 r"$\pi_0$-Fast",
+    }
+
+    exp_name = args.exp_name
+
+    def results_dir(name):
+        return os.path.join('outputs', args.subfolder, name) if args.subfolder else os.path.join('outputs', name)
+    
     ## RoboArena 4 with 20 heldout evals per policy
     if exp_name == "roboarena4":
         for beta in beta_range:
-            cfg = ExperimentConfig(beta=beta, results_dir=f'outputs/{exp_name}')
+            cfg = ExperimentConfig(beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
-            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names)
 
     ## RoboArena 7 with 20 heldout evals per policy
     if exp_name == "roboarena7":
         for beta in beta_range:
-            seven_cfg = ExperimentConfig(beta=beta, results_dir=f'outputs/{exp_name}')
+            seven_cfg = ExperimentConfig(beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=seven_policies, cfg=seven_cfg)
-            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=seven_cfg)
-
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=seven_cfg, labels=plot_policy_names)
 
     ## RoboArena WM experiment with 4 policies
     if exp_name == "roboarena4_wm_prior":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=f'outputs/{exp_name}')
+            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
-            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names)
 
     ## RoboArena WM experiment with 7 policies
     if exp_name == "roboarena7_wm_prior":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=f'outputs/{exp_name}')
+            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
-            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names)
 
     if exp_name == "test_fixed_sequence":
         beta = 100
-        test_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=f'outputs/{exp_name}')
+        test_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
         policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=test_cfg)
-        main(policy_data, policies, sim_means, real_means, bernoulli, cfg=test_cfg)
+        main(policy_data, policies, sim_means, real_means, bernoulli, cfg=test_cfg, labels=plot_policy_names)

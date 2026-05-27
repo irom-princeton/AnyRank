@@ -365,9 +365,10 @@ class SequentialGraphicalTest:
                 bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, 1)
             else:
                 bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, 1)
-                len_common = min(len(data0), len(data1))
-                data0 = data0[:len_common]
-                data1 = data1[:len_common]
+            
+            len_common = min(len(data0), len(data1))
+            data0 = data0[:len_common]
+            data1 = data1[:len_common]
 
             result = self.run_test_on_data(bonferroni_step_test, data0, data1)
             
@@ -412,9 +413,10 @@ class SequentialGraphicalTest:
                 bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, num_hypotheses)
             else:
                 bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, num_hypotheses)
-                len_common = min(len(data0), len(data1))
-                data0 = data0[:len_common]
-                data1 = data1[:len_common]
+            
+            len_common = min(len(data0), len(data1))
+            data0 = data0[:len_common]
+            data1 = data1[:len_common]
 
             result = self.run_test_on_data(bonferroni_step_test, data0, data1)
             
@@ -457,9 +459,10 @@ class SequentialGraphicalTest:
                 bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha_i, num_hypotheses)
             else:
                 bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha_i, num_hypotheses)
-                len_common = min(len(data0), len(data1))
-                data0 = data0[:len_common]
-                data1 = data1[:len_common]
+            
+            len_common = min(len(data0), len(data1))
+            data0 = data0[:len_common]
+            data1 = data1[:len_common]
 
             result = self.run_test_on_data(bonferroni_step_test, data0, data1)
             if result.decision == Decision.AcceptAlternative:
@@ -550,8 +553,8 @@ class SequentialGraphicalTest:
                     data0 = policy_data[:, p0_index]
                     data1 = policy_data[:, p1_index]
                     if np.isnan(data0[k]) or np.isnan(data1[k]):
-                        breakpoint()
                         continue
+                    timestamp = k
                     nsm_test = tests[i]
                     nsm_result = nsm_test.step(data0[k], data1[k]) # updating step function
                     if nsm_result.decision == Decision.AcceptAlternative:
@@ -603,8 +606,8 @@ class SequentialGraphicalTest:
                         hypothesis_policy_indices = ordered_hypotheses_policy_indices[i]
                         if hypothesis_policy_indices not in rejected_hypotheses:
                             rejected_hypotheses.append(hypothesis_policy_indices)
-                            decision_times[hypothesis_policy_indices] = k # or nsm_time_of_decision, but we will just use k for now since it's more intuitive to say we made the decision at time k when we see the data point at time k.
-
+                            decision_times[hypothesis_policy_indices] = timestamp # or nsm_time_of_decision, but we will just use k for now since it's more intuitive to say we made the decision at time k when we see the data point at time k.
+                            
                 # Reset alpha for remaining hypotheses to initial alpha (or alpha_per_hypothesis if provided) after each update:
                 for i in range(num_hypotheses):
                     if i not in rejected:

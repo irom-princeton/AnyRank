@@ -443,7 +443,7 @@ class SequentialGraphicalTest:
                         policy_evals[p1_index].append(k)
 
                     # no more trials available
-                    if k >= len(data0) - 1 or np.isnan(data0[k]) or np.isnan(data1[k]):
+                    if k >= len(data0) - 1 or k>= len(data1)-1 or np.isnan(data0[k]) or np.isnan(data1[k]):
                         hypotheses_completed[i] = 1.0
                         break
                     
@@ -505,7 +505,7 @@ class SequentialGraphicalTest:
                         if hypothesis_policy_indices not in rejected_hypotheses:
                             rejected_hypotheses.append(hypothesis_policy_indices)
                             decision_times[hypothesis_policy_indices] = KK[i] # or nsm_time_of_decision, but we will just use k for now since it's more intuitive to say we made the decision at time k when we see the data point at time k.
-
+                            
                 # Reset alpha for remaining hypotheses to initial alpha (or alpha_per_hypothesis if provided) after each update:
                 for i in range(num_hypotheses):
                     if i not in rejected:

@@ -116,8 +116,9 @@ def get_cld_letters_from_ttds(progress_array_dict, ttd_dicts, max_sample_size_pe
         input_list = []
 
         for (alg1, alg2), ttd in ttd_dict.items():
-            ttd_val = max_sample_size_per_model if ttd == "N/A" else int(ttd)
-            if ttd_val < max_sample_size_per_model:
+            max_sample_size_hyp = min(max_sample_size_per_model[alg1], max_sample_size_per_model[alg2])
+            ttd_val = max_sample_size_hyp if ttd == "N/A" else int(ttd)
+            if ttd_val < max_sample_size_hyp:
                 input_list.append((alg1, alg2))
             max_ttd[alg1] = max(ttd_val, max_ttd.get(alg1, 0))
             max_ttd[alg2] = max(ttd_val, max_ttd.get(alg2, 0))
@@ -176,7 +177,6 @@ def make_violin_plots_from_ttds(
         raise ValueError(f"mode must be 'task_progress' or 'success_rate', got {mode!r}")
 
     os.makedirs(output_dir, exist_ok=True)
-
     if mode == "task_progress":
         local_progress_bins = np.arange(K_progress + 1) / K_progress
         arrays_dict = {
@@ -193,14 +193,19 @@ def make_violin_plots_from_ttds(
     )
 
     for method, (cld_dict, max_ttd) in cld_results.items():
-        cld_letters = [cld_dict[alg] for alg in policies]
-        arrays = [arrays_dict[alg][:int(max_ttd[alg])] for alg in policies]
-        ttd_for_bundle = {alg: int(max_ttd[alg]) for alg in policies}
+        active = [alg for alg in policies if max_ttd[alg] > 0]
+        active_labels = [labels[policies.index(alg)] for alg in active]
+        if not active:
+            print(f"  [{method}] skipping — no policies with evaluated data")
+            continue
+        cld_letters = [cld_dict[alg] for alg in active]
+        arrays = [arrays_dict[alg][:int(max_ttd[alg])] for alg in active]
+        ttd_for_bundle = {alg: int(max_ttd[alg]) for alg in active}
 
         plot_path = os.path.join(output_dir, f"violin_{method}.png")
         plot_model_comparison(
-            model_name_list=policies,
-            labels=labels,
+            model_name_list=active,
+            labels=active_labels,
             result_arrays=arrays,
             cld_letters=cld_letters,
             rng=np.random.default_rng(123),
@@ -212,8 +217,8 @@ def make_violin_plots_from_ttds(
 
         save_plot_bundle(
             path_prefix=os.path.join(output_dir, method),
-            model_name_list=policies,
-            labels=labels,
+            model_name_list=active,
+            labels=active_labels,
             arrays=arrays,
             cld_letters=cld_letters,
             ttd=ttd_for_bundle,

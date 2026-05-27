@@ -14,9 +14,9 @@ def build_wins_matrix(data, n_teams):
     ----------
     data : np.ndarray, shape (N, 3)
         Each row is [i, j, outcome]:
-          outcome > 0.75  -> j beat i
-          outcome < 0.25  -> i beat j
-          outcome ~ 0.5   -> tie, ignored
+          outcome == 2  -> i beat j
+          outcome == 0  -> j beat i
+          outcome == 1  -> tie, ignored
     n_teams : int
 
     Returns
@@ -27,10 +27,11 @@ def build_wins_matrix(data, n_teams):
     wins = np.zeros((n_teams, n_teams))
     for row in data:
         i, j, outcome = int(row[0]), int(row[1]), row[2]
-        if outcome > 0.75:
-            wins[j, i] += 1
-        elif not np.isclose(outcome, 0.5):
+        if outcome == 2:    # i wins
             wins[i, j] += 1
+        elif outcome == 0:  # j wins
+            wins[j, i] += 1
+        # outcome == 1 → tie, ignored
     return wins
 
 

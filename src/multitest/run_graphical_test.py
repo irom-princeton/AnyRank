@@ -17,7 +17,7 @@ from multitest.sequential_graphical import SequentialGraphicalTest
 from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
 from multitest.sequential_graphical_evalue_active import SequentialGraphicalTest as EActiveSequentialGraphicalTest
 from multitest.sequential_graphical_active import SequentialGraphicalTest as ASequentialGraphicalTest
-from multitest.plot_cld import make_violin_plots_from_ttds
+from multitest.plot_cld import make_violin_plots_from_ttds, get_cld_letters_from_ttds
 import pandas as pd
 
 #############################################
@@ -25,7 +25,7 @@ import pandas as pd
 #############################################
 @dataclass
 class ExperimentConfig:
-    Nmax: int = 500
+    Nmax: int = 5000
     n_runs: int = 1
     n_prior: int = 20
     alpha: float = 0.1
@@ -35,6 +35,7 @@ class ExperimentConfig:
     run_new_experiment: bool = True    # set to False to plot from saved data
     results_dir: str = 'outputs/roboarena_subset4'
     plot_violin: bool = True           # set to False to skip violin plots (data is always saved)
+    graph_type: str = "soft_masked"    # "soft_masked" or "fully_connected"
 
 
 def get_partial_ranking(rejected_hypotheses, null_hypotheses_policy_indices, n_policies, hypotheses_correct=None):
@@ -270,16 +271,21 @@ def plot_heatmap(matrix, title, save_path, real_sim_means, fmt='.2f', figsize=(1
     plt.close()
 
 
-def _accumulate_samples(samples_dict, run, decision_times, Nmax, procedure="graphical"):
+def _accumulate_samples(samples_dict, run, decision_times, Nmax_policies, procedure="graphical"):
     for hyp, ttd in decision_times.items():
+        pi1, pi2 = hyp
+        pi1_max = Nmax_policies[pi1]
+        pi2_max = Nmax_policies[pi2]
+        Nmax = min(pi1_max, pi2_max)
         if procedure == "fixed_sequence" and ttd == "N/A":
             ttd = 0
         else:
             ttd = Nmax if ttd == "N/A" else ttd
 
         pi1, pi2 = hyp
-        samples_dict[run][pi1] = max(ttd, samples_dict[run].get(pi1, 0))
-        samples_dict[run][pi2] = max(ttd, samples_dict[run].get(pi2, 0))
+        
+        samples_dict[run][pi1] = min(pi1_max, max(ttd, samples_dict[run].get(pi1, 0)))
+        samples_dict[run][pi2] = min(pi2_max, max(ttd, samples_dict[run].get(pi2, 0)))
 
 def _average_dict(d, n):
     for key in d:
@@ -320,7 +326,7 @@ def run_experiments(
     policy_data, Nmax, alpha_per_hypothesis,
     alpha_per_hypothesis_weighted_bonferroni, weighted_G,
     policy_index, real_sim_means, bernoulli=False,
-    cfg=None,
+    cfg=None, labels=None,
 ):
     if cfg is None:
         cfg = ExperimentConfig()
@@ -331,7 +337,12 @@ def run_experiments(
     n_prior = cfg.n_prior
     plot_from_saved = cfg.plot_from_saved
     figsize = cfg.figsize
-
+    Nmax_policies = {
+        i: np.sum(~np.isnan(policy_data[:, i]))         for i,policy in policy_index.items()
+    }
+    max_sample_size_per_model = {
+        policy: np.sum(~np.isnan(policy_data[:, i]))         for i,policy in policy_index.items()
+    }
     #####################################################
     # Looping over multiple runs to generate policy data
     #####################################################
@@ -350,6 +361,15 @@ def run_experiments(
     samples_bonferroni = {k: {} for k in range(n_runs)}
     samples_weighted_bonferroni = {k: {} for k in range(n_runs)}
     n_rejected_per_run = {
+        'graphical': [],
+        'evalues': [],
+        'evalues_active': [],
+        'graphical_active': [],
+        'bonferroni': [],
+        'weighted_bonferroni': [],
+        'fixed': [],
+    }
+    decision_times_per_run = {
         'graphical': [],
         'evalues': [],
         'evalues_active': [],
@@ -390,12 +410,15 @@ def run_experiments(
             )
         )
 
-        _accumulate_samples(samples, run, decision_times, Nmax, procedure="p-graphical")
+        _accumulate_samples(samples, run, decision_times, Nmax_policies, procedure="p-graphical")
         animate(graphs_over_time, results_dir, Nmax, n_prior)
         for key, value in decision_times.items():
             avg_ttd[key] = avg_ttd.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
         print("Decision times: ", decision_times, "\n")
+        decision_times_per_run['graphical'].append(
+            {f"{p0},{p1}": v for (p0, p1), v in decision_times.items()}
+        )
         n_rejected_per_run['graphical'].append(len(rejected_hypotheses))
         rejection_order_per_run['graphical'].append(
             [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses]
@@ -415,12 +438,15 @@ def run_experiments(
                 weighted_G=weighted_G, verbose=True,
             )
         )
-        _accumulate_samples(samples_evalues, run, decision_times_evalues, Nmax, procedure="evalues")
+        _accumulate_samples(samples_evalues, run, decision_times_evalues, Nmax_policies, procedure="evalues")
         # animate(graphs_over_time_evalues, results_dir, Nmax, n_prior)
         for key, value in decision_times_evalues.items():
             avg_ttd_evalues[key] = avg_ttd_evalues.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues)
         print("Decision times: ", decision_times_evalues, "\n")
+        decision_times_per_run['evalues'].append(
+            {f"{p0},{p1}": v for (p0, p1), v in decision_times_evalues.items()}
+        )
         n_rejected_per_run['evalues'].append(len(rejected_hypotheses_evalues))
         rejection_order_per_run['evalues'].append(
             [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_evalues]
@@ -440,12 +466,15 @@ def run_experiments(
                 weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,
             )
         )
-        _accumulate_samples(samples_evalues_active, run, decision_times_evalues_active, Nmax, procedure="evalues_active")
+        _accumulate_samples(samples_evalues_active, run, decision_times_evalues_active, Nmax_policies, procedure="evalues_active")
         # animate(graphs_over_time_evalues_active, results_dir, Nmax, n_prior)
         for key, value in decision_times_evalues_active.items():
             avg_ttd_evalues_active[key] = avg_ttd_evalues_active.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues_active)
         print("Decision times: ", decision_times_evalues_active, "\n")
+        decision_times_per_run['evalues_active'].append(
+            {f"{p0},{p1}": v for (p0, p1), v in decision_times_evalues_active.items()}
+        )
         n_rejected_per_run['evalues_active'].append(len(rejected_hypotheses_evalues_active))
         rejection_order_per_run['evalues_active'].append(
             [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_evalues_active]
@@ -465,12 +494,15 @@ def run_experiments(
                 weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,
             )
         )
-        _accumulate_samples(samples_active, run, decision_times_active, Nmax, procedure="graphical_active")
+        _accumulate_samples(samples_active, run, decision_times_active, Nmax_policies, procedure="graphical_active")
         animate(graphs_over_time_active, results_dir, Nmax, n_prior)
         for key, value in decision_times_active.items():
             avg_ttd_active[key] = avg_ttd_active.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_active)
         print("Decision times: ", decision_times_active, "\n")
+        decision_times_per_run['graphical_active'].append(
+            {f"{p0},{p1}": v for (p0, p1), v in decision_times_active.items()}
+        )
         n_rejected_per_run['graphical_active'].append(len(rejected_hypotheses_active))
         rejection_order_per_run['graphical_active'].append(
             [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_active]
@@ -481,11 +513,14 @@ def run_experiments(
         rejected_hypotheses_bonferroni, decision_times_bonferroni, hypotheses_correct_bonferroni = graphical_test.bonferroni_multitest(
             null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
         )
-        _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni, Nmax, procedure="bonferroni")
+        _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni, Nmax_policies, procedure="bonferroni")
         for key, value in decision_times_bonferroni.items():
             avg_ttd_bonferroni[key] = avg_ttd_bonferroni.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_bonferroni)
         print("Decision times: ", decision_times_bonferroni, "\n")
+        decision_times_per_run['bonferroni'].append(
+            {f"{p0},{p1}": v for (p0, p1), v in decision_times_bonferroni.items()}
+        )
         n_rejected_per_run['bonferroni'].append(len(rejected_hypotheses_bonferroni))
         rejection_order_per_run['bonferroni'].append(
             [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_bonferroni]
@@ -500,11 +535,14 @@ def run_experiments(
             )
         )
         
-        _accumulate_samples(samples_weighted_bonferroni, run, decision_times_weighted_bonferroni, Nmax, procedure="weighted_bonferroni")
+        _accumulate_samples(samples_weighted_bonferroni, run, decision_times_weighted_bonferroni, Nmax_policies, procedure="weighted_bonferroni")
         for key, value in decision_times_weighted_bonferroni.items():
             avg_ttd_weighted_bonferroni[key] = avg_ttd_weighted_bonferroni.get(key, 0) + (Nmax if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_weighted_bonferroni)
         print("Decision times: ", decision_times_weighted_bonferroni, "\n")
+        decision_times_per_run['weighted_bonferroni'].append(
+            {f"{p0},{p1}": v for (p0, p1), v in decision_times_weighted_bonferroni.items()}
+        )
         n_rejected_per_run['weighted_bonferroni'].append(len(rejected_hypotheses_weighted_bonferroni))
         rejection_order_per_run['weighted_bonferroni'].append(
             [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_weighted_bonferroni]
@@ -515,11 +553,14 @@ def run_experiments(
         rejected_hypotheses_fixed, decision_times_fixed, hypotheses_correct_fixed = graphical_test.fixed_multitest(
             null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
         )
-        _accumulate_samples(samples_fixed, run, decision_times_fixed, Nmax, procedure="fixed_sequence")
+        _accumulate_samples(samples_fixed, run, decision_times_fixed, Nmax_policies, procedure="fixed_sequence")
         for key, value in decision_times_fixed.items():
             avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + (0 if value == "N/A" else value)
         print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_fixed)
         print("Decision times: ", decision_times_fixed, "\n")
+        decision_times_per_run['fixed'].append(
+            {f"{p0},{p1}": v for (p0, p1), v in decision_times_fixed.items()}
+        )
         n_rejected_per_run['fixed'].append(len(rejected_hypotheses_fixed))
         rejection_order_per_run['fixed'].append(
             [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_fixed]
@@ -531,6 +572,11 @@ def run_experiments(
         json.dump(rejection_order_per_run, f, indent=2)
     print(f"Rejection order saved to {rejection_order_path}")
 
+    decision_times_path = f'{results_dir}/rejection_order/decision_times_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.json'
+    with open(decision_times_path, 'w') as f:
+        json.dump(decision_times_per_run, f, indent=2)
+    print(f"Decision times saved to {decision_times_path}")
+
     with open(f'{results_dir}/empirical_real_means_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
         f.write("Real-sim pairs: \n")
         for real_mean, sim_mean in real_sim_means:
@@ -539,48 +585,6 @@ def run_experiments(
         f.write("Empirical real means: " + str(np.nanmean(policy_data, axis=0)) + "\n")
         f.write("True real means: " + str([rs[0] for rs in real_sim_means]) + "\n")
 
-    # Compute and store partial rankings for all methods.
-    # Each rejected (p0, p1) confirms p1 > p0; un-rejected pairs are incomparable.
-    # Ranking key: net score = wins - losses (tiebroken by raw wins).
-    def _write_ranking(label, rejected_hyps, f, hypotheses_correct=None):
-        ranking, wins, losses, incomparable = get_partial_ranking(
-            rejected_hyps, null_hypotheses_policy_indices, n_policies,
-            hypotheses_correct=hypotheses_correct,
-        )
-        n_total = len(null_hypotheses_policy_indices)
-        n_confirmed = n_total - len(incomparable)
-        ranked_names = [policy_index[i] for i in ranking]
-        print(f"\n{label}:")
-        print(f"  Ranking (best->worst): {ranked_names}")
-        print(f"  Confirmed orderings: {n_confirmed}/{n_total}  "
-              f"({'complete' if not incomparable else f'{len(incomparable)} incomparable pairs'})")
-        for i in ranking:
-            print(f"    {policy_index[i]}: wins={wins[i]}, losses={losses[i]}, net={wins[i]-losses[i]}")
-        f.write(f"\n{'='*60}\n{label}\n{'='*60}\n")
-        f.write(f"Ranking (best->worst): {ranked_names}\n")
-        f.write(f"Confirmed orderings: {n_confirmed}/{n_total}\n")
-        for i in ranking:
-            f.write(f"  {policy_index[i]}: wins={wins[i]}, losses={losses[i]}, net={wins[i]-losses[i]}\n")
-        if incomparable:
-            f.write(f"Incomparable pairs ({len(incomparable)}):\n")
-            for p0, p1 in incomparable:
-                f.write(f"  ({policy_index[p0]}, {policy_index[p1]}) — no confirmed ordering\n")
-        else:
-            f.write("Complete ranking: all pairwise orderings confirmed.\n")
-
-    ranking_path = f'{results_dir}/policy_rankings_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt'
-    print(f"\n{'='*60}\nPolicy Rankings\n{'='*60}")
-    with open(ranking_path, 'w') as f:
-        f.write(f"Policy Rankings — N={Nmax}, n={n_prior}, alpha={alpha}, beta={beta}\n")
-        f.write(f"Policies: {[policy_index[i] for i in range(n_policies)]}\n")
-        _write_ranking("Graphical (p-value, passive)",       rejected_hypotheses,                    f, hypotheses_correct=hypotheses_correct)
-        _write_ranking("E-value (passive)",                  rejected_hypotheses_evalues,            f, hypotheses_correct=hypotheses_correct_evalues)
-        _write_ranking("E-value (active)",                   rejected_hypotheses_evalues_active,     f, hypotheses_correct=hypotheses_correct_evalues_active)
-        _write_ranking("Active graphical (p-value)",         rejected_hypotheses_active,             f, hypotheses_correct=hypotheses_correct_active)
-        _write_ranking("Bonferroni",                         rejected_hypotheses_bonferroni,         f, hypotheses_correct=hypotheses_correct_bonferroni)
-        _write_ranking("Weighted Bonferroni",                rejected_hypotheses_weighted_bonferroni, f, hypotheses_correct=hypotheses_correct_weighted_bonferroni)
-        _write_ranking("Fixed sequence",                     rejected_hypotheses_fixed,              f, hypotheses_correct=hypotheses_correct_fixed)
-    print(f"\nPolicy rankings written to {ranking_path}")
 
     _average_dict(avg_ttd, n_runs)
     _average_dict(avg_ttd_evalues, n_runs)
@@ -589,6 +593,46 @@ def run_experiments(
     _average_dict(avg_ttd_bonferroni, n_runs)
     _average_dict(avg_ttd_fixed, n_runs)
     _average_dict(avg_ttd_weighted_bonferroni, n_runs)
+
+    # Compute and save CLD-based policy rankings from averaged TTDs.
+    policy_names = [policy_index[i] for i in range(n_policies)]
+    progress_array_dict_cld = {
+        policy_index[i]: policy_data[:, i][~np.isnan(policy_data[:, i])]
+        for i in range(n_policies)
+    }
+    ttd_dicts_for_ranking = {
+        "graphical":           {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd.items()},
+        "evalues":             {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_evalues.items()},
+        "evalues_active":      {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_evalues_active.items()},
+        "graphical_active":    {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_active.items()},
+        "bonferroni":          {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_bonferroni.items()},
+        "weighted_bonferroni": {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_weighted_bonferroni.items()},
+        "fixed":               {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_fixed.items()},
+    }
+    cld_results_for_ranking = get_cld_letters_from_ttds(
+        progress_array_dict_cld, ttd_dicts_for_ranking, max_sample_size_per_model, policy_names
+    )
+
+    ranking_path = f'{results_dir}/policy_rankings_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt'
+    print(f"\n{'='*60}\nPolicy Rankings (CLD)\n{'='*60}")
+    with open(ranking_path, 'w') as f:
+        f.write(f"Policy Rankings (CLD) — N={Nmax}, n={n_prior}, alpha={alpha}, beta={beta}\n")
+        f.write(f"Policies: {policy_names}\n")
+        for method, (cld_dict, max_ttd) in cld_results_for_ranking.items():
+            active = [(alg, cld_dict[alg]) for alg in policy_names if max_ttd.get(alg, 0) > 0]
+            inactive = [alg for alg in policy_names if max_ttd.get(alg, 0) == 0]
+            ranked = sorted(active, key=lambda x: (min(x[1]), len(x[1])))
+            f.write(f"\n{'='*60}\n{method}\n{'='*60}\n")
+            print(f"\n{method}:")
+            for alg, letters in ranked:
+                line = f"  {alg}: {letters}"
+                f.write(line + "\n")
+                print(line)
+            if inactive:
+                note = f"  Not evaluated: {inactive}"
+                f.write(note + "\n")
+                print(note)
+    print(f"\nPolicy rankings written to {ranking_path}")
 
     os.makedirs(f'{results_dir}/sample_complexity', exist_ok=True)
     with open(f'{results_dir}/sample_complexity/sample_complexity_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
@@ -832,14 +876,21 @@ def run_experiments(
     with open(violin_base + "_meta.json", "w") as f:
         json.dump(violin_meta, f, indent=2)
 
+    plot_labels = labels if labels is not None else policy_names
     if plot_from_saved or cfg.plot_violin:
+        if bernoulli:
+            mode="success_rate"
+        else:
+            mode="task_progress"
+
         make_violin_plots_from_ttds(
             progress_array_dict=progress_array_dict_cld,
             ttd_dicts=ttd_dicts_cld,
             policies=policy_names,
-            labels=policy_names,
+            labels=plot_labels,
             max_sample_size_per_model=Nmax,
-            output_dir=os.path.join(results_dir, "cld_violins"),
+            mode=mode,
+            output_dir=os.path.join(results_dir, "cld_violins", f"beta{beta}"),
         )
 
 
@@ -1017,7 +1068,7 @@ def visualize_weighted_graph(weighted_G, ordered_null_hypotheses, save_path=None
         plt.show()
 
 
-def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None):
+def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None, labels=None):
     """
     Main function to run experiments.
 
@@ -1081,7 +1132,15 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
     weighted_G_full = fully_connected_graph(ordered_null_hypotheses, cfg)
 
     # Soft-masked graph (forward edges weighted by mean gap, backward edges allowed but penalized)
-    weighted_G = soft_masked_graph(ordered_null_hypotheses, cfg)
+    weighted_G_soft = soft_masked_graph(ordered_null_hypotheses, cfg)
+
+    if cfg.graph_type == "fully_connected":
+        weighted_G = weighted_G_full
+    elif cfg.graph_type == "soft_masked":
+        weighted_G = weighted_G_soft
+    else:
+        raise ValueError(f"Unknown graph_type {cfg.graph_type!r}; expected 'soft_masked' or 'fully_connected'")
+
     for i in range(len(weighted_G)):
         assert abs(sum(weighted_G[i]) - 1) <= 1e-3
 
@@ -1092,10 +1151,11 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
             print(line.strip())
             f.write(line)
 
+    plot_labels = [labels[p] for p in policies] if labels is not None else None
     run_experiments(
         n_policies, ordered_hypotheses,
         policy_matrix, Nmax, alpha_per_hypothesis,
         alpha_per_hypothesis_weighted_bonferroni, weighted_G,
         policy_index, real_sim_means, bernoulli,
-        cfg=cfg,
+        cfg=cfg, labels=plot_labels,
     )

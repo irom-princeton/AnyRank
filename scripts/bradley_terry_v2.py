@@ -30,10 +30,11 @@ def build_wins_matrix(data, n_teams):
     wins = np.zeros((n_teams, n_teams))
     for row in data:
         i, j, outcome = int(row[0]), int(row[1]), row[2]
-        if outcome > 0.75:
-            wins[j, i] += 1
-        elif not np.isclose(outcome, 0.5):
+        if outcome == 2:    # i wins
             wins[i, j] += 1
+        elif outcome == 0:  # j wins
+            wins[j, i] += 1
+        # outcome == 1 → tie, ignored
     return wins
 
 
@@ -121,11 +122,11 @@ def csv_to_pairwise_data(csv_path, columns=None, seed=None):
                 xj = row.iloc[j]
 
                 if np.isclose(xi, xj):
-                    continue
+                    outcome = 1
                 elif xi > xj:
-                    outcome = 0.0
+                    outcome = 2  # i wins
                 else:
-                    outcome = 1.0
+                    outcome = 0  # j wins
 
                 comparison_counts[df.columns[i]] += 1
                 comparison_counts[df.columns[j]] += 1
@@ -158,13 +159,13 @@ def csv_preferences_to_pairwise_data(csv_path, policy_names, ignore_ties=True, h
 
         if np.isclose(pref, 0.5):
             if not ignore_ties:
-                data_rows.append([i, j, 0.5])
+                data_rows.append([i, j, 1])
         elif np.isclose(pref, 1.0):
-            data_rows.append([i, j, 1.0])
+            data_rows.append([i, j, 0])  # B wins
             preference_counts[policy_names[i]] += 1
             preference_counts[policy_names[j]] += 1
         elif np.isclose(pref, 0.0):
-            data_rows.append([i, j, 0.0])
+            data_rows.append([i, j, 2])  # A wins
             preference_counts[policy_names[i]] += 1
             preference_counts[policy_names[j]] += 1
         else:

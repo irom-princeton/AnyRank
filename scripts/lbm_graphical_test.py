@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import os
 import copy
@@ -159,48 +160,74 @@ def experiment_B(id = True, ood=False):
             sim_means[policy] = sim_success_rate
     return policy_data, real_means, sim_means
 
-def run_graphical_experiment_A(beta=1):
+def _results_dir(subfolder, name):
+    base = 'outputs/lbm_graphical_test'
+    return os.path.join(base, subfolder, name) if subfolder else os.path.join(base, name)
+
+def run_graphical_experiment_A(beta=1, labels=None, subfolder=None, graph_type="soft_masked"):
     policy_data, real_means, sim_means = experiment_A()
-    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir='outputs/lbm_graphical_test/experiment_A')
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_A'), graph_type=graph_type)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels)
 
-def run_graphical_experiment_B(id=True, ood=False, beta=1):
+def run_graphical_experiment_B(id=True, ood=False, beta=1, labels=None, subfolder=None, graph_type="soft_masked"):
     policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
-    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir='outputs/lbm_graphical_test/experiment_B_id_{}_ood_{}'.format(id, ood))
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_B_id_{}_ood_{}'.format(id, ood)), graph_type=graph_type)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels)
 
-def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1):
+def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, labels=None, subfolder=None, graph_type="soft_masked"):
     policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
     # Print the number of evals per policy:
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
-    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir='outputs/lbm_graphical_test/experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift))
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg)
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift)), graph_type=graph_type)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels)
 
     
 if __name__ == "__main__":
-    df = load_full_data(FULL_DATA_DIR / "Fig2.csv")    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/lbm_graphical_test/")
+    parser.add_argument("--graph_type", type=str, default="soft_masked",
+                        choices=["soft_masked", "fully_connected"],
+                        help="Graph type for alpha transfer weights")
+    args = parser.parse_args()
+
+    df = load_full_data(FULL_DATA_DIR / "Fig2.csv")
     beta_range = [0, 1, 5, 10, 25, 50, 100]
 
+    plot_policy_names = {
+        "Single Task":                    "ST",
+        "LBM finetuned":                  "LBM-FT",
+        "LBM zeroshot":                   "LBM-ZS",
+        "Single Task (Nominal)":          "ST (Nom.)",
+        "LBM finetuned (Nominal)":        "LBM-FT (Nom.)",
+        "LBM zeroshot (Nominal)":         "LBM-ZS (Nom.)",
+        "Single Task (DistShift)":        "ST (DS)",
+        "LBM finetuned (DistShift)":      "LBM-FT (DS)",
+        "LBM zeroshot (DistShift)":       "LBM-ZS (DS)",
+        "Single Task (NovelStation)":     "ST (NS)",
+        "LBM finetuned (NovelStation)":   "LBM-FT (NS)",
+        "LBM zeroshot (NovelStation)":    "LBM-ZS (NS)",
+    }
+
     for beta in beta_range:
-    ## Experiment A: In-distribution performance comparison
-        run_graphical_experiment_A(beta=beta)
+        # ## Experiment A: In-distribution performance comparison
+        run_graphical_experiment_A(beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type)
 
         ## Experiment B: In-distribution performance comparison
-        run_graphical_experiment_B(id=True, ood=False, beta=beta) # ID only
+        run_graphical_experiment_B(id=True, ood=False, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type) # ID only
 
         ## Experiment C: In-distribution performance comparison
-        run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=beta) # ID only
+        run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type) # ID only
 
         ## Experiment B: Out-of-distribution performance comparison
-        run_graphical_experiment_B(id=False, ood=True, beta=beta) # OOD only
+        run_graphical_experiment_B(id=False, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type) # OOD only
 
         ## Experiment B: Out-of-distribution and nominal performance comparison
-        run_graphical_experiment_B(id=True, ood=True, beta=beta) # ID and O
+        run_graphical_experiment_B(id=True, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type) # ID and O
 
         ## Experiment C: Out-of-distribution objects and nominal performance comparison
-        run_graphical_experiment_C(id=True, ood=True, distshift="distshift", beta=beta) # ID and OOD with distribution shift
+        run_graphical_experiment_C(id=True, ood=True, distshift="distshift", beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type) # ID and OOD with distribution shift
 
-        ## Experiment C: Out-of-distribution stations and nominal performance comparison 
-        run_graphical_experiment_C(id=True, ood=True, distshift="novel", beta=beta) # ID and OOD with novel station
+        ## Experiment C: Out-of-distribution stations and nominal performance comparison
+        run_graphical_experiment_C(id=True, ood=True, distshift="novel", beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type) # ID and OOD with novel station
         
