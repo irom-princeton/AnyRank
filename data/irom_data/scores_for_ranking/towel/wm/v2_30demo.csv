@@ -1,0 +1,25 @@
+idx,base wm success old init,specialist wm success old init,base wm success new condition,specialist wm success new condition,,avgs,
+0,0,1,0.75,1,,base wm success old condition,0.7291666667
+1,0.75,1,0.75,0.5,,specialist wm success old condition,0.9583333333
+2,1,1,0.25,0.75,,base wm success new condition,0.525
+3,0.5,1,0.25,0.25,,specialist wm success new condition,0.7
+4,0.5,1,0.25,0.25,,overall base wm success,0.6691176471
+5,1,1,0.5,1,,overall specialist wm success,0.8823529412
+6,0.75,1,0.75,1,,,
+7,1,0.75,0.75,1,,,
+8,0.75,1,0.5,1,,,
+9,0.5,1,0.5,0.25,,,
+10,0,1,,,,,
+11,0.75,1,,,,,
+12,1,1,,,,,
+13,0.5,0.75,,,,,
+14,0.75,1,,,,,
+15,1,0.75,,,,,
+16,1,1,,,,,
+17,0.75,1,,,,,
+18,1,1,,,,,
+19,0.75,1,,,,,
+20,0.75,1,,,,,
+21,0.75,1,,,,,
+22,0.75,1,,,,,
+23,1,0.75,,,,,
