@@ -176,11 +176,11 @@ if __name__ == "__main__":
         "v0_10demo":     "DP (10)",
     }
 
-    # for beta in beta_range:
-    #     for wm in wm_types_towel:
-    #         for init_cond in init_conds_towel:
-    #             # run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
-    #             run_graphical_towel(wm=wm, init_cond=init_cond, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+    for beta in beta_range:
+        for wm in wm_types_towel:
+            for init_cond in init_conds_towel:
+                # run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+                run_graphical_towel(wm=wm, init_cond=init_cond, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
 
     for beta in beta_range:
         for wm in wm_types_carrot:
