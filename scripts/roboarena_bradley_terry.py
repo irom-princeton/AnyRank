@@ -297,7 +297,7 @@ def subselect_and_remap_prefs(selected_policies, policy_names, data):
     return np.asarray(rows, dtype=float), old_to_new, new_to_old
 
 
-def load_roboarena_data(selected_policies=None, ignore_ties=False):
+def load_roboarena_data(selected_policies=None, ignore_ties=False, Nmax=None):
     """Load progress and preference pairwise data, subselected to selected_policies."""
     raw_names = np.genfromtxt(DATA_PATH, delimiter=",", dtype=str, max_rows=1)
     progress_data, policy_names, policy_progress, policy_counts, comparison_counts = \
@@ -325,6 +325,11 @@ def load_roboarena_data(selected_policies=None, ignore_ties=False):
         old_to_new = {i: i for i in range(len(policy_names))}
         new_to_old = {i: i for i in range(len(policy_names))}
         policy_indices = list(range(len(policy_names)))
+
+    if Nmax is not None:
+        pref_data = pref_data[:Nmax]
+        progress_data = progress_data[:Nmax]
+        pref_data_w_scores = pref_data_w_scores[:Nmax]
 
     # Returns progress data as preferences!
     return (
@@ -404,13 +409,13 @@ def save_bt_rankings(ranked_names, ranked_scores, save_dir, metric):
     print(f"Rankings saved to {path}")
 
 
-def roboarena_ranking_bt_davidson(metric="preference", subselect_and_remap=True, selected_policies=None, save_dir=BASE_SAVE_DIR):
+def roboarena_ranking_bt_davidson(metric="preference", subselect_and_remap=True, selected_policies=None, save_dir=BASE_SAVE_DIR, Nmax=None):
     if subselect_and_remap and selected_policies is None:
         selected_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_vq_droid",
                              "paligemma_fast_specialist_droid", "paligemma_fast_droid",
                              "paligemma_diffusion_droid", "pi0_fast_droid"]
     pref_data, progress_data, _, policy_names, policy_progress, preference_counts, old_to_new, new_to_old, policy_indices = \
-        load_roboarena_data(selected_policies if subselect_and_remap else None)
+        load_roboarena_data(selected_policies if subselect_and_remap else None, Nmax=Nmax)
     data = pref_data if metric == "preference" else progress_data
 
     pref_df = pd.DataFrame(data, columns=["i", "j", "y"])
@@ -440,13 +445,13 @@ def roboarena_ranking_bt_davidson(metric="preference", subselect_and_remap=True,
     save_bt_rankings(bt_board["policy_name"].tolist(), bt_board["score"].to_numpy(), save_dir, metric)
     plot_bt_result(policy_names, eval_counts, policy_oracle_performance, p_old, save_dir, metric=metric)
 
-def roboarena_ranking_naive(metric="preference", subselect_and_remap=True, selected_policies=None, save_dir=BASE_SAVE_DIR):
+def roboarena_ranking_naive(metric="preference", subselect_and_remap=True, selected_policies=None, save_dir=BASE_SAVE_DIR, Nmax=None):
     if subselect_and_remap and selected_policies is None:
         selected_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_vq_droid",
                              "paligemma_fast_specialist_droid", "paligemma_fast_droid",
                              "paligemma_diffusion_droid", "pi0_fast_droid"]
     pref_data, progress_data, _, policy_names, policy_progress, preference_counts, old_to_new, new_to_old, policy_indices = \
-        load_roboarena_data(selected_policies if subselect_and_remap else None)
+        load_roboarena_data(selected_policies if subselect_and_remap else None, Nmax=Nmax)
     data = pref_data if metric == "preference" else progress_data
 
     if len(data) == 0:
@@ -472,12 +477,12 @@ def roboarena_ranking_naive(metric="preference", subselect_and_remap=True, selec
     os.makedirs(save_dir, exist_ok=True)
     save_bt_rankings([id_to_policy[idx] for idx in idx_ranked], bt_scores[idx_ranked], save_dir, metric)
 
-def roboarena_ranking_em(metric='preference', use_partials=False, subselect_and_remap=True, selected_policies=None, save_dir=BASE_SAVE_DIR):
+def roboarena_ranking_em(metric='preference', use_partials=False, subselect_and_remap=True, selected_policies=None, save_dir=BASE_SAVE_DIR, Nmax=None):
     if subselect_and_remap and selected_policies is None:
         selected_policies = ["paligemma_binning_droid", "pi0_droid",
                              "paligemma_diffusion_droid", "pi0_fast_droid"]
     pref_data, progress_data, pref_data_w_scores, policy_names, policy_progress, preference_counts, old_to_new, new_to_old, policy_indices = \
-        load_roboarena_data(selected_policies if subselect_and_remap else None)
+        load_roboarena_data(selected_policies if subselect_and_remap else None, Nmax=Nmax)
 
     if use_partials:
         data = pref_data_w_scores
@@ -507,7 +512,7 @@ def roboarena_ranking_em(metric='preference', use_partials=False, subselect_and_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/<exp_name>/")
-    parser.add_argument("--exp_name", type=str, default="roboarena4",
+    parser.add_argument("--exp_name", type=str, default="roboarena7",
                         choices=["roboarena4", "roboarena7"],
                         help="Experiment to run")
     parser.add_argument("--method", type=str, default="naive", choices=["davidson", "em", "naive"], help="BT fitting method to use")
@@ -528,23 +533,24 @@ if __name__ == "__main__":
     os.makedirs(save_dir, exist_ok=True)
 
     bt_method = args.method
-    
+    Nmax = 1150
+
     if args.exp_name == "roboarena4":
         selected_policies = four_policies
     elif args.exp_name == "roboarena7":
         selected_policies = seven_policies
 
     if bt_method == "davidson":
-        roboarena_ranking_bt_davidson(metric="preference", subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir)
-        roboarena_ranking_bt_davidson(metric="progress", subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir)
+        roboarena_ranking_bt_davidson(metric="preference", subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir, Nmax=Nmax)
+        roboarena_ranking_bt_davidson(metric="progress", subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir, Nmax=Nmax)
 
     elif bt_method == "em":
-        roboarena_ranking_em(metric='preference', use_partials=True, subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir)
-        roboarena_ranking_em(metric='preference', use_partials=False, subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir)
+        roboarena_ranking_em(metric='preference', use_partials=True, subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir, Nmax=Nmax)
+        roboarena_ranking_em(metric='preference', use_partials=False, subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir, Nmax=Nmax)
 
         # roboarena_ranking_em(metric='progress', use_partials=True, subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir)
-        roboarena_ranking_em(metric='progress', use_partials=False, subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir)
+        roboarena_ranking_em(metric='progress', use_partials=False, subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir, Nmax=Nmax)
 
     elif bt_method == "naive":
-        roboarena_ranking_naive(metric="preference", subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir)
-        roboarena_ranking_naive(metric="progress", subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir)
+        roboarena_ranking_naive(metric="preference", subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir, Nmax=Nmax)
+        roboarena_ranking_naive(metric="progress", subselect_and_remap=True, selected_policies=selected_policies, save_dir=save_dir, Nmax=Nmax)

@@ -1,0 +1,250 @@
+import argparse
+import numpy as np
+import os
+import copy
+import tqdm
+import tempfile
+import matplotlib.pyplot as plt
+from PIL import Image as PILImage
+from multitest.sequential_graphical import SequentialGraphicalTest
+from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
+import pandas as pd
+import ast
+from multitest.individual_test import ExperimentConfig, main
+from pathlib import Path
+
+########################################
+#### Data Loading and Preprocessing ####
+########################################
+np.random.seed(42)
+
+# SMALL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_data_small/LBM_DATA"
+# FULL_DATA_DIR = "/n/fs/irom-testing/multitest/data/lbm_large/full_data"
+
+# Directory containing the current Python file
+ROOT = Path(__file__).resolve().parent.parent
+ALL_METHODS = ['fixed', 'bonferroni', 'weighted_bonferroni', 'graphical_active']
+
+SMALL_DATA_DIR = ROOT / "data" / "lbm_data_small" / "LBM_DATA"
+FULL_DATA_DIR = ROOT / "data" / "lbm_large" / "full_data"
+
+def load_small_data():
+    subfolders = [f for f in os.listdir(SMALL_DATA_DIR) if os.path.isdir(os.path.join(SMALL_DATA_DIR, f))]
+    data = {}
+    means = {}
+    for subfolder in subfolders:
+        data[subfolder] = {}
+        subfolder_path = os.path.join(SMALL_DATA_DIR, subfolder)
+        for file in os.listdir(subfolder_path):
+            exp_name = file.split(".")[0]
+            file_path = os.path.join(subfolder_path, file)
+            exp_data = np.load(file_path, allow_pickle=True)
+            data[exp_name] = exp_data
+            means[exp_name] = np.mean(exp_data)
+    return data, means
+
+
+def load_full_data(data_file):
+    df = pd.read_csv(data_file)
+    return df
+
+def load_evals(df, panel, task, method, filename=None):
+    evals = df[
+        (df["Panel"] == panel)
+        & (df["Task"] == task)
+        & (df["Method"] == method)
+    ]
+    trials = ast.literal_eval(evals["Success/Failure"].iloc[0])
+    # convert bool to int
+    trials = np.array(trials).astype(int) # shuffle the trials to avoid any ordering effects
+    # trials = np.random.permutation(trials)
+    success_rate = np.mean(trials)
+    tri_rank = evals["CLD_Letter"].iloc[0]
+    return trials, success_rate, tri_rank
+
+def experiment_A():
+    # In distribution data 
+    # Policies: Single task, LBM finetuned, LBM zeroshot
+    # Task: PutKiwiInCenterOfTable
+    # Panel: Fig2A_HW_Seen_Nominal
+    hw_panel = "Fig2A_HW_Seen_Nominal"
+    sim_panel = "Fig2A_Sim_Seen_Nominal"   
+    
+    tasks = ["PushCoasterToMug"]
+    policies = ["Single Task", "LBM finetuned", "LBM zeroshot"]
+    sim_means = {}
+    real_means = {}
+
+    policy_data = {}
+    for policy in policies:
+        trials, success_rate, tri_rank = load_evals(df, hw_panel, tasks[0], policy)
+        policy_data[policy] = trials
+        real_means[policy] = success_rate
+        sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, tasks[0], policy)
+        sim_means[policy] = sim_success_rate
+    return policy_data, real_means, sim_means
+
+def experiment_C(id=True, ood=False, distshift=None):
+    # In distribution data 
+    # Policies: Single task, LBM finetuned, LBM zeroshot
+    # Task: PutKiwiInCenterOfTable
+    # Panel: Fig2A_HW_Seen_Nominal
+    if id and not ood:
+        hw_panels = ["Fig2A_HW_Seen_Nominal"]
+        sim_panels = ["Fig2A_Sim_Seen_Nominal"] 
+    elif not id and ood:
+        hw_panels = ["Fig2B_HW_Seen_DistShift"]
+        sim_panels = ["Fig2B_Sim_Seen_DistShift"]
+    elif id and ood:
+        hw_panels = ["Fig2A_HW_Seen_Nominal", "Fig2B_HW_Seen_DistShift"]
+        sim_panels = ["Fig2A_Sim_Seen_Nominal", "Fig2B_Sim_Seen_DistShift"]  
+    
+    hw_tasks = ["Aggregate - Hardware"]
+    if distshift == "distshift":
+        dist_shift_hw_tasks = ["Aggregate - Distribution shift"]
+    elif distshift == "novel":
+        hw_panels = ["Fig2A_HW_Seen_Nominal", "Fig2B_HW_Seen_NovelStation"]
+        dist_shift_hw_tasks = ["Aggregate - Novel station"]
+    sim_tasks = ["Aggregate - Simulation"]
+    base_policies = ["Single Task", "LBM finetuned", "LBM zeroshot"]
+    sim_means = {}
+    real_means = {}
+
+    policy_data = {}
+    for base_policy in base_policies:
+        for hw_panel, sim_panel in zip(hw_panels, sim_panels):
+            policy = f"{base_policy} ({hw_panel.split('_')[3]})"
+            if hw_panel.split('_')[3] == "DistShift" or hw_panel.split('_')[3] == "NovelStation":
+                try:
+                    trials, success_rate, tri_rank = load_evals(df, hw_panel, dist_shift_hw_tasks[0], base_policy)
+                except:
+                    breakpoint()
+            else:
+                trials, success_rate, tri_rank = load_evals(df, hw_panel, hw_tasks[0], base_policy)
+            
+            policy_data[policy] = trials
+            real_means[policy] = success_rate
+            sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, sim_tasks[0], base_policy)
+            sim_means[policy] = sim_success_rate
+            
+    return policy_data, real_means, sim_means
+
+def experiment_B(id = True, ood=False):
+    # In distribution data 
+    # Policies: Single task, LBM finetuned, LBM zeroshot
+    # Task: TurnMugRightSideUp
+    # Panel: Fig2A_HW_Seen_Nominal
+    if id and not ood:
+        hw_panels = ["Fig2A_HW_Seen_Nominal"]
+        sim_panels = ["Fig2A_Sim_Seen_Nominal"] 
+    elif not id and ood:
+        hw_panels = ["Fig2B_HW_Seen_DistShift"]
+        sim_panels = ["Fig2B_Sim_Seen_DistShift"]
+    elif id and ood:
+        hw_panels = ["Fig2A_HW_Seen_Nominal", "Fig2B_HW_Seen_DistShift"]
+        sim_panels = ["Fig2A_Sim_Seen_Nominal", "Fig2B_Sim_Seen_DistShift"]
+
+    tasks = ["TurnMugRightsideUp"]
+    base_policies = ["Single Task", "LBM finetuned", "LBM zeroshot"]
+    
+    sim_means = {}
+    real_means = {}
+    policy_data = {}
+
+    for base_policy in base_policies:
+        for hw_panel, sim_panel in zip(hw_panels, sim_panels):
+            policy = f"{base_policy} ({hw_panel.split('_')[3]})"
+            trials, success_rate, tri_rank = load_evals(df, hw_panel, tasks[0], base_policy)
+            policy_data[policy] = trials
+            real_means[policy] = success_rate
+            sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, tasks[0], base_policy)
+            sim_means[policy] = sim_success_rate
+    return policy_data, real_means, sim_means
+
+def _results_dir(subfolder, name):
+    base = 'lbm_outputs'
+    return os.path.join(base, subfolder, name) if subfolder else os.path.join(base, name)
+
+def run_graphical_experiment_A(beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+    policy_data, real_means, sim_means = experiment_A()
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_A'), graph_type=graph_type)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+
+def run_graphical_experiment_B(id=True, ood=False, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+    policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
+    keys = list(real_means.keys())
+    real_vec = np.array([real_means[k] for k in keys])
+    sim_vec = np.array([sim_means[k] for k in keys])
+    corr = np.corrcoef(real_vec, sim_vec)[0, 1]
+    print(f"Correlation between real and sim means: {corr:.4f}")
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_B_id_{}_ood_{}'.format(id, ood)), graph_type=graph_type)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+
+def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+    policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
+    # Print the number of evals per policy:
+    for policy, trials in policy_data.items():
+        print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
+    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift)), graph_type=graph_type)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+
+    
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/lbm_graphical_test/")
+    parser.add_argument("--graph_type", type=str, default="fully_connected",
+                        choices=["soft_masked", "fully_connected"],
+                        help="Graph type for alpha transfer weights")
+    parser.add_argument("--transitive", type=bool, default=True,
+                        choices=[True, False],
+                        help="Whether to use transitive policy evaluation")
+    parser.add_argument("--methods", type=str, nargs='+', default=ALL_METHODS,
+                        choices=ALL_METHODS,
+                        metavar="METHOD",
+                        help=f"Methods to run (default: all). Choices: {', '.join(ALL_METHODS)}")
+    
+    args = parser.parse_args()
+
+    methods = args.methods  # None means all
+    
+    df = load_full_data(FULL_DATA_DIR / "Fig2.csv")
+    beta_range = [0, 1, 5]
+
+    plot_policy_names = {
+        "Single Task":                    "ST",
+        "LBM finetuned":                  "LBM-FT",
+        "LBM zeroshot":                   "LBM-ZS",
+        "Single Task (Nominal)":          "ST (Nom.)",
+        "LBM finetuned (Nominal)":        "LBM-FT (Nom.)",
+        "LBM zeroshot (Nominal)":         "LBM-ZS (Nom.)",
+        "Single Task (DistShift)":        "ST (DS)",
+        "LBM finetuned (DistShift)":      "LBM-FT (DS)",
+        "LBM zeroshot (DistShift)":       "LBM-ZS (DS)",
+        "Single Task (NovelStation)":     "ST (NS)",
+        "LBM finetuned (NovelStation)":   "LBM-FT (NS)",
+        "LBM zeroshot (NovelStation)":    "LBM-ZS (NS)",
+    }
+
+
+    for beta in beta_range:
+        ## Experiment A: In-distribution performance comparison
+        run_graphical_experiment_A(beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+
+        ## Experiment B: In-distribution performance comparison
+        run_graphical_experiment_B(id=True, ood=False, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID only
+
+        ## Experiment C: In-distribution performance comparison
+        run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID only
+
+        # Experiment B: Out-of-distribution performance comparison
+        run_graphical_experiment_B(id=False, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # OOD only
+
+        ## Experiment B: Out-of-distribution and nominal performance comparison
+        run_graphical_experiment_B(id=True, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID and OOD
+
+        ## Experiment C: Out-of-distribution objects and nominal performance comparison
+        run_graphical_experiment_C(id=True, ood=True, distshift="distshift", beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID and OOD with distribution shift
+
+        ## Experiment C: Out-of-distribution stations and nominal performance comparison
+        run_graphical_experiment_C(id=True, ood=True, distshift="novel", beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID and OOD with novel station
+        

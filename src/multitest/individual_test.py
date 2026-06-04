@@ -1,3 +1,4 @@
+
 '''
 Apurva Badithela, Mar 16, 2026
 
@@ -200,6 +201,7 @@ def allocate_weights(diffs: list[float], beta=1) -> np.ndarray:
     weights : np.ndarray of allocated weights, sums to 1
     """
     diffs = np.array(diffs, dtype=float)
+    # diffs = diffs - diffs.max()  # shift to make all diffs non-negative, preserving relative magnitudes
     if np.any(diffs < 0):
         raise ValueError("All differences must be non-negative.")
     weights = np.exp(diffs * beta)
@@ -326,7 +328,7 @@ def run_experiments(
     policy_data, Nmax, alpha_per_hypothesis,
     alpha_per_hypothesis_weighted_bonferroni, weighted_G,
     policy_index, real_sim_means, bernoulli=False,
-    cfg=None, labels=None,
+    cfg=None, labels=None, methods=None, allow_transitive=False,
 ):
     if cfg is None:
         cfg = ExperimentConfig()
@@ -337,6 +339,11 @@ def run_experiments(
     n_prior = cfg.n_prior
     plot_from_saved = cfg.plot_from_saved
     figsize = cfg.figsize
+    ALL_METHODS = ('graphical', 'evalues', 'evalues_active', 'graphical_active', 'bonferroni', 'weighted_bonferroni', 'fixed')
+    if methods is None:
+        methods = set(ALL_METHODS)
+    else:
+        methods = set(methods)
     Nmax_policies = {
         i: np.sum(~np.isnan(policy_data[:, i]))         for i,policy in policy_index.items()
     }
@@ -387,183 +394,234 @@ def run_experiments(
         'weighted_bonferroni': [],
         'fixed': [],
     }
+    hypotheses_correct_per_run = {
+        'graphical': [],
+        'evalues': [],
+        'evalues_active': [],
+        'graphical_active': [],
+        'bonferroni': [],
+        'weighted_bonferroni': [],
+        'fixed': [],
+    }
     null_hypotheses = [hyp for hyp, _, _ in ordered_hypotheses]
     null_hypotheses_policy_indices = [idx for _, idx, _ in ordered_hypotheses]
+    
     for i, policy in policy_index.items():
         print(f"Policy {policy} mean: ", np.nanmean(policy_data[:,i]))
     print("------------------------")
     for run in range(n_runs):
         ########################  P-value Graphical multitest ########################
-        print("Running graphical multitest...")
-        graphical_test = SequentialGraphicalTest(
-            num_policies=n_policies,
-            null_hypotheses=null_hypotheses_policy_indices,
-            total_alpha=alpha,
-        )
-        
-        rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, hypotheses_correct = (
-            graphical_test.sequential_graphical_multitest(
-                null_hypotheses_policy_indices, policy_data, Nmax,
-                alpha_per_hypothesis=alpha_per_hypothesis,
-                weighted_G=weighted_G, verbose=True,
+        if 'graphical' in methods:
+            print("Running graphical multitest...")
+            graphical_test = SequentialGraphicalTest(
+                num_policies=n_policies,
+                null_hypotheses=null_hypotheses_policy_indices,
+                total_alpha=alpha,
             )
-        )
 
-        _accumulate_samples(samples, run, decision_times, Nmax_policies, procedure="p-graphical")
-        animate(graphs_over_time, results_dir, Nmax, n_prior)
-        for key, value in decision_times.items():
-            avg_ttd[key] = avg_ttd.get(key, 0) + (Nmax if value == "N/A" else value)
-        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
-        print("Decision times: ", decision_times, "\n")
-        decision_times_per_run['graphical'].append(
-            {f"{p0},{p1}": v for (p0, p1), v in decision_times.items()}
-        )
-        n_rejected_per_run['graphical'].append(len(rejected_hypotheses))
-        rejection_order_per_run['graphical'].append(
-            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses]
-        )
+            rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, hypotheses_correct = (
+                graphical_test.sequential_graphical_multitest(
+                    null_hypotheses_policy_indices, policy_data, Nmax,
+                    alpha_per_hypothesis=alpha_per_hypothesis,
+                    weighted_G=weighted_G, verbose=True,
+                    allow_transitive=allow_transitive,
+                )
+            )
+            
+
+            _accumulate_samples(samples, run, decision_times, Nmax_policies, procedure="p-graphical")
+            animate(graphs_over_time, results_dir, Nmax, n_prior)
+            for key, value in decision_times.items():
+                Nmax_hyp = min(Nmax_policies[key[0]], Nmax_policies[key[1]])
+                avg_ttd[key] = avg_ttd.get(key, 0) + (Nmax_hyp if value == "N/A" else value)
+            print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
+            print("Decision times: ", decision_times, "\n")
+            decision_times_per_run['graphical'].append(
+                {f"{p0},{p1}": v for (p0, p1), v in decision_times.items()}
+            )
+            n_rejected_per_run['graphical'].append(len(rejected_hypotheses))
+            rejection_order_per_run['graphical'].append(
+                [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses]
+            )
+            hypotheses_correct_per_run['graphical'].append({f"{p0},{p1}": v for (p0, p1), v in hypotheses_correct.items()})
 
         ######################## E-Value Graphical multitest ########################
-        print("Running e-value graphical multitest...")
-        egraphical_test = ESequentialGraphicalTest(
-            num_policies=n_policies,
-            null_hypotheses=null_hypotheses_policy_indices,
-            total_alpha=alpha,
-        )
-        rejected_hypotheses_evalues, _, decision_times_evalues, _, _, graphs_over_time_evalues, hypotheses_correct_evalues = (
-            egraphical_test.sequential_graphical_multitest(
-                null_hypotheses_policy_indices, policy_data, Nmax,
-                alpha_per_hypothesis=alpha_per_hypothesis,
-                weighted_G=weighted_G, verbose=True,
+        if 'evalues' in methods:
+            print("Running e-value graphical multitest...")
+            egraphical_test = ESequentialGraphicalTest(
+                num_policies=n_policies,
+                null_hypotheses=null_hypotheses_policy_indices,
+                total_alpha=alpha,
             )
-        )
-        _accumulate_samples(samples_evalues, run, decision_times_evalues, Nmax_policies, procedure="evalues")
-        # animate(graphs_over_time_evalues, results_dir, Nmax, n_prior)
-        for key, value in decision_times_evalues.items():
-            avg_ttd_evalues[key] = avg_ttd_evalues.get(key, 0) + (Nmax if value == "N/A" else value)
-        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues)
-        print("Decision times: ", decision_times_evalues, "\n")
-        decision_times_per_run['evalues'].append(
-            {f"{p0},{p1}": v for (p0, p1), v in decision_times_evalues.items()}
-        )
-        n_rejected_per_run['evalues'].append(len(rejected_hypotheses_evalues))
-        rejection_order_per_run['evalues'].append(
-            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_evalues]
-        )
+            rejected_hypotheses_evalues, _, decision_times_evalues, _, _, graphs_over_time_evalues, hypotheses_correct_evalues = (
+                egraphical_test.sequential_graphical_multitest(
+                    null_hypotheses_policy_indices, policy_data, Nmax,
+                    alpha_per_hypothesis=alpha_per_hypothesis,
+                    weighted_G=weighted_G, verbose=True,
+                )
+            )
+            _accumulate_samples(samples_evalues, run, decision_times_evalues, Nmax_policies, procedure="evalues")
+            # animate(graphs_over_time_evalues, results_dir, Nmax, n_prior)
+            for key, value in decision_times_evalues.items():
+                Nmax_hyp = min(Nmax_policies[key[0]], Nmax_policies[key[1]])
+                avg_ttd_evalues[key] = avg_ttd_evalues.get(key, 0) + (Nmax_hyp   if value == "N/A" else value)
+            print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues)
+            print("Decision times: ", decision_times_evalues, "\n")
+            decision_times_per_run['evalues'].append(
+                {f"{p0},{p1}": v for (p0, p1), v in decision_times_evalues.items()}
+            )
+            n_rejected_per_run['evalues'].append(len(rejected_hypotheses_evalues))
+            rejection_order_per_run['evalues'].append(
+                [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_evalues]
+            )
+            hypotheses_correct_per_run['evalues'].append({f"{p0},{p1}": v for (p0, p1), v in hypotheses_correct_evalues.items()})
 
         ######################## E-Value Active Selection Graphical multitest ########################
-        print("Running e-value active graphical multitest...")
-        egraphical_active_test = EActiveSequentialGraphicalTest(
-            num_policies=n_policies,
-            null_hypotheses=null_hypotheses_policy_indices,
-            total_alpha=alpha,
-        )
-        rejected_hypotheses_evalues_active, _, decision_times_evalues_active, _, _, graphs_over_time_evalues_active, _, hypotheses_correct_evalues_active, _ = (
-            egraphical_active_test.sequential_graphical_multitest(
-                null_hypotheses_policy_indices, policy_data, Nmax,
-                alpha_per_hypothesis=alpha_per_hypothesis,
-                weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,
+        if 'evalues_active' in methods:
+            print("Running e-value active graphical multitest...")
+            egraphical_active_test = EActiveSequentialGraphicalTest(
+                num_policies=n_policies,
+                null_hypotheses=null_hypotheses_policy_indices,
+                total_alpha=alpha,
             )
-        )
-        _accumulate_samples(samples_evalues_active, run, decision_times_evalues_active, Nmax_policies, procedure="evalues_active")
-        # animate(graphs_over_time_evalues_active, results_dir, Nmax, n_prior)
-        for key, value in decision_times_evalues_active.items():
-            avg_ttd_evalues_active[key] = avg_ttd_evalues_active.get(key, 0) + (Nmax if value == "N/A" else value)
-        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues_active)
-        print("Decision times: ", decision_times_evalues_active, "\n")
-        decision_times_per_run['evalues_active'].append(
-            {f"{p0},{p1}": v for (p0, p1), v in decision_times_evalues_active.items()}
-        )
-        n_rejected_per_run['evalues_active'].append(len(rejected_hypotheses_evalues_active))
-        rejection_order_per_run['evalues_active'].append(
-            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_evalues_active]
-        )
+            rejected_hypotheses_evalues_active, _, decision_times_evalues_active, _, _, graphs_over_time_evalues_active, _, hypotheses_correct_evalues_active, _ = (
+                egraphical_active_test.sequential_graphical_multitest(
+                    null_hypotheses_policy_indices, policy_data, Nmax,
+                    alpha_per_hypothesis=alpha_per_hypothesis,
+                    weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,
+                )
+            )
+            _accumulate_samples(samples_evalues_active, run, decision_times_evalues_active, Nmax_policies, procedure="evalues_active")
+            # animate(graphs_over_time_evalues_active, results_dir, Nmax, n_prior)
+            for key, value in decision_times_evalues_active.items():
+                Nmax_hyp = min(Nmax_policies[key[0]], Nmax_policies[key[1]])
+                avg_ttd_evalues_active[key] = avg_ttd_evalues_active.get(key, 0) + (Nmax_hyp if value == "N/A" else value)
+            print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_evalues_active)
+            print("Decision times: ", decision_times_evalues_active, "\n")
+            decision_times_per_run['evalues_active'].append(
+                {f"{p0},{p1}": v for (p0, p1), v in decision_times_evalues_active.items()}
+            )
+            n_rejected_per_run['evalues_active'].append(len(rejected_hypotheses_evalues_active))
+            rejection_order_per_run['evalues_active'].append(
+                [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_evalues_active]
+            )
+            hypotheses_correct_per_run['evalues_active'].append({f"{p0},{p1}": v for (p0, p1), v in hypotheses_correct_evalues_active.items()})
 
         ######################## P-Value Active Selection Graphical multitest ########################
-        print("Running active graphical multitest (p-value)...")
-        agraphical_test = ASequentialGraphicalTest(
-            num_policies=n_policies,
-            null_hypotheses=null_hypotheses_policy_indices,
-            total_alpha=alpha,
-        )
-        rejected_hypotheses_active, _, decision_times_active, _, _, graphs_over_time_active, _, hypotheses_correct_active, _ = (
-            agraphical_test.sequential_graphical_multitest(
-                null_hypotheses_policy_indices, policy_data, Nmax,
-                alpha_per_hypothesis=alpha_per_hypothesis,
-                weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,
+        if 'graphical_active' in methods:
+            print("Running active graphical multitest (p-value)...")
+            agraphical_test = ASequentialGraphicalTest(
+                num_policies=n_policies,
+                null_hypotheses=null_hypotheses_policy_indices,
+                total_alpha=alpha,
             )
-        )
-        _accumulate_samples(samples_active, run, decision_times_active, Nmax_policies, procedure="graphical_active")
-        animate(graphs_over_time_active, results_dir, Nmax, n_prior)
-        for key, value in decision_times_active.items():
-            avg_ttd_active[key] = avg_ttd_active.get(key, 0) + (Nmax if value == "N/A" else value)
-        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_active)
-        print("Decision times: ", decision_times_active, "\n")
-        decision_times_per_run['graphical_active'].append(
-            {f"{p0},{p1}": v for (p0, p1), v in decision_times_active.items()}
-        )
-        n_rejected_per_run['graphical_active'].append(len(rejected_hypotheses_active))
-        rejection_order_per_run['graphical_active'].append(
-            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_active]
-        )
+            rejected_hypotheses_active, _, decision_times_active, _, _, graphs_over_time_active, _, hypotheses_correct_active, _ = (
+                agraphical_test.sequential_graphical_multitest(
+                    null_hypotheses_policy_indices, policy_data, Nmax,
+                    alpha_per_hypothesis=alpha_per_hypothesis,
+                    weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,allow_transitive=allow_transitive,
+                )
+            )
+            _accumulate_samples(samples_active, run, decision_times_active, Nmax_policies, procedure="graphical_active")
+            animate(graphs_over_time_active, results_dir, Nmax, n_prior)
+            for key, value in decision_times_active.items():
+                Nmax_hyp = min(Nmax_policies[key[0]], Nmax_policies[key[1]])
+                avg_ttd_active[key] = avg_ttd_active.get(key, 0) + (Nmax_hyp   if value == "N/A" else value)
+            print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_active)
+            print("Decision times: ", decision_times_active, "\n")
+            decision_times_per_run['graphical_active'].append(
+                {f"{p0},{p1}": v for (p0, p1), v in decision_times_active.items()}
+            )
+            n_rejected_per_run['graphical_active'].append(len(rejected_hypotheses_active))
+            rejection_order_per_run['graphical_active'].append(
+                [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_active]
+            )
+            hypotheses_correct_per_run['graphical_active'].append({f"{p0},{p1}": v for (p0, p1), v in hypotheses_correct_active.items()})
 
         ######################## Bonferroni ########################
-        print("Running Bonferroni corrected individual tests for comparison...")
-        rejected_hypotheses_bonferroni, decision_times_bonferroni, hypotheses_correct_bonferroni = graphical_test.bonferroni_multitest(
-            null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
-        )
-        _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni, Nmax_policies, procedure="bonferroni")
-        for key, value in decision_times_bonferroni.items():
-            avg_ttd_bonferroni[key] = avg_ttd_bonferroni.get(key, 0) + (Nmax if value == "N/A" else value)
-        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_bonferroni)
-        print("Decision times: ", decision_times_bonferroni, "\n")
-        decision_times_per_run['bonferroni'].append(
-            {f"{p0},{p1}": v for (p0, p1), v in decision_times_bonferroni.items()}
-        )
-        n_rejected_per_run['bonferroni'].append(len(rejected_hypotheses_bonferroni))
-        rejection_order_per_run['bonferroni'].append(
-            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_bonferroni]
-        )
+        if 'bonferroni' in methods:
+            print("Running Bonferroni corrected individual tests for comparison...")
+            _graphical_test_for_bonferroni = graphical_test if 'graphical' in methods else SequentialGraphicalTest(
+                num_policies=n_policies,
+                null_hypotheses=null_hypotheses_policy_indices,
+                total_alpha=alpha,
+            )
+            rejected_hypotheses_bonferroni, decision_times_bonferroni, hypotheses_correct_bonferroni = _graphical_test_for_bonferroni.bonferroni_multitest(
+                null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli,
+                allow_transitive=allow_transitive,
+            )
+            _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni, Nmax_policies, procedure="bonferroni")
+            for key, value in decision_times_bonferroni.items():
+                Nmax_hyp = min(Nmax_policies[key[0]], Nmax_policies[key[1]])
+                avg_ttd_bonferroni[key] = avg_ttd_bonferroni.get(key, 0) + (Nmax_hyp   if value == "N/A" else value)
+            print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_bonferroni)
+            print("Decision times: ", decision_times_bonferroni, "\n")
+            decision_times_per_run['bonferroni'].append(
+                {f"{p0},{p1}": v for (p0, p1), v in decision_times_bonferroni.items()}
+            )
+            n_rejected_per_run['bonferroni'].append(len(rejected_hypotheses_bonferroni))
+            rejection_order_per_run['bonferroni'].append(
+                [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_bonferroni]
+            )
+            hypotheses_correct_per_run['bonferroni'].append({f"{p0},{p1}": v for (p0, p1), v in hypotheses_correct_bonferroni.items()})
 
         ######################## Weighted Bonferroni ########################
-        print("Running weighted Bonferroni corrected individual tests for comparison...")
-        rejected_hypotheses_weighted_bonferroni, decision_times_weighted_bonferroni, hypotheses_correct_weighted_bonferroni = (
-            graphical_test.weighted_bonferroni_multitest(
-                null_hypotheses_policy_indices, policy_data, Nmax,
-                alpha_per_hypothesis_weighted_bonferroni, bernoulli=bernoulli
+        if 'weighted_bonferroni' in methods:
+            print("Running weighted Bonferroni corrected individual tests for comparison...")
+            _graphical_test_for_wb = graphical_test if 'graphical' in methods else SequentialGraphicalTest(
+                num_policies=n_policies,
+                null_hypotheses=null_hypotheses_policy_indices,
+                total_alpha=alpha,
             )
-        )
-        
-        _accumulate_samples(samples_weighted_bonferroni, run, decision_times_weighted_bonferroni, Nmax_policies, procedure="weighted_bonferroni")
-        for key, value in decision_times_weighted_bonferroni.items():
-            avg_ttd_weighted_bonferroni[key] = avg_ttd_weighted_bonferroni.get(key, 0) + (Nmax if value == "N/A" else value)
-        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_weighted_bonferroni)
-        print("Decision times: ", decision_times_weighted_bonferroni, "\n")
-        decision_times_per_run['weighted_bonferroni'].append(
-            {f"{p0},{p1}": v for (p0, p1), v in decision_times_weighted_bonferroni.items()}
-        )
-        n_rejected_per_run['weighted_bonferroni'].append(len(rejected_hypotheses_weighted_bonferroni))
-        rejection_order_per_run['weighted_bonferroni'].append(
-            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_weighted_bonferroni]
-        )
+            rejected_hypotheses_weighted_bonferroni, decision_times_weighted_bonferroni, hypotheses_correct_weighted_bonferroni = (
+                _graphical_test_for_wb.weighted_bonferroni_multitest(
+                    null_hypotheses_policy_indices, policy_data, Nmax,
+                    alpha_per_hypothesis_weighted_bonferroni, bernoulli=bernoulli,
+                    allow_transitive=allow_transitive,
+                )
+            )
+            _accumulate_samples(samples_weighted_bonferroni, run, decision_times_weighted_bonferroni, Nmax_policies, procedure="weighted_bonferroni")
+            for key, value in decision_times_weighted_bonferroni.items():
+                Nmax_hyp = min(Nmax_policies[key[0]], Nmax_policies[key[1]])
+                avg_ttd_weighted_bonferroni[key] = avg_ttd_weighted_bonferroni.get(key, 0) + (Nmax_hyp   if value == "N/A" else value)
+            print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_weighted_bonferroni)
+            print("Decision times: ", decision_times_weighted_bonferroni, "\n")
+            decision_times_per_run['weighted_bonferroni'].append(
+                {f"{p0},{p1}": v for (p0, p1), v in decision_times_weighted_bonferroni.items()}
+            )
+            n_rejected_per_run['weighted_bonferroni'].append(len(rejected_hypotheses_weighted_bonferroni))
+            rejection_order_per_run['weighted_bonferroni'].append(
+                [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_weighted_bonferroni]
+            )
+            hypotheses_correct_per_run['weighted_bonferroni'].append({f"{p0},{p1}": v for (p0, p1), v in hypotheses_correct_weighted_bonferroni.items()})
 
         ######################## Fixed Sequence ########################
-        print("Running Fixed sequence individual tests for comparison...")
-        rejected_hypotheses_fixed, decision_times_fixed, hypotheses_correct_fixed = graphical_test.fixed_multitest(
-            null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli
-        )
-        _accumulate_samples(samples_fixed, run, decision_times_fixed, Nmax_policies, procedure="fixed_sequence")
-        for key, value in decision_times_fixed.items():
-            avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + (0 if value == "N/A" else value)
-        print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_fixed)
-        print("Decision times: ", decision_times_fixed, "\n")
-        decision_times_per_run['fixed'].append(
-            {f"{p0},{p1}": v for (p0, p1), v in decision_times_fixed.items()}
-        )
-        n_rejected_per_run['fixed'].append(len(rejected_hypotheses_fixed))
-        rejection_order_per_run['fixed'].append(
-            [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_fixed]
-        )
+        if 'fixed' in methods:
+            print("Running Fixed sequence individual tests for comparison...")
+            _graphical_test_for_fixed = graphical_test if 'graphical' in methods else SequentialGraphicalTest(
+                num_policies=n_policies,
+                null_hypotheses=null_hypotheses_policy_indices,
+                total_alpha=alpha,
+            )
+            rejected_hypotheses_fixed, decision_times_fixed, hypotheses_correct_fixed = _graphical_test_for_fixed.fixed_multitest(
+                null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli,
+                allow_transitive=allow_transitive,
+            )
+            _accumulate_samples(samples_fixed, run, decision_times_fixed, Nmax_policies, procedure="fixed_sequence")
+            
+            for key, value in decision_times_fixed.items():
+                Nmax_hyp = min(Nmax_policies[key[0]], Nmax_policies[key[1]])
+                avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + (Nmax_hyp if value == "N/A" else value)
+            print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_fixed)
+            print("Decision times: ", decision_times_fixed, "\n")
+            decision_times_per_run['fixed'].append(
+                {f"{p0},{p1}": v for (p0, p1), v in decision_times_fixed.items()}
+            )
+            n_rejected_per_run['fixed'].append(len(rejected_hypotheses_fixed))
+            rejection_order_per_run['fixed'].append(
+                [[policy_index[p0], policy_index[p1]] for p0, p1 in rejected_hypotheses_fixed]
+            )
+            hypotheses_correct_per_run['fixed'].append({f"{p0},{p1}": v for (p0, p1), v in hypotheses_correct_fixed.items()})
 
     os.makedirs(f'{results_dir}/rejection_order', exist_ok=True)
     rejection_order_path = f'{results_dir}/rejection_order/rejection_order_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.json'
@@ -573,8 +631,8 @@ def run_experiments(
 
     decision_times_path = f'{results_dir}/rejection_order/decision_times_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.json'
     with open(decision_times_path, 'w') as f:
-        json.dump(decision_times_per_run, f, indent=2)
-    print(f"Decision times saved to {decision_times_path}")
+        json.dump({'decision_times': decision_times_per_run, 'hypotheses_correct': hypotheses_correct_per_run}, f, indent=2)
+    print(f"Decision times and hypotheses correct saved to {decision_times_path}")
 
     with open(f'{results_dir}/empirical_real_means_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.txt', 'w') as f:
         f.write("Real-sim pairs: \n")
@@ -583,6 +641,17 @@ def run_experiments(
         f.write("==============================\n")
         f.write("Empirical real means: " + str(np.nanmean(policy_data, axis=0)) + "\n")
         f.write("True real means: " + str([rs[0] for rs in real_sim_means]) + "\n")
+
+    policy_meta = {
+        str(i): {
+            'name': policy_index[i],
+            'real_mean': real_sim_means[i][0],
+            'sim_mean': real_sim_means[i][1],
+        }
+        for i in range(n_policies)
+    }
+    with open(f'{results_dir}/policy_meta.json', 'w') as f:
+        json.dump(policy_meta, f, indent=2)
 
 
     _average_dict(avg_ttd, n_runs)
@@ -657,26 +726,27 @@ def run_experiments(
     #############################################
     # Summarizing results
     #############################################
-    exchange_pvalue_matrix = np.zeros((n_policies, n_policies))
-    exchange_alpha_matrix = np.zeros((n_policies, n_policies))
-    for i, (p0_index, p1_index) in enumerate(null_hypotheses_policy_indices):
-        p1_index_ex = n_policies - 1 - p1_index
-        exchange_pvalue_matrix[p1_index_ex, p0_index] = p_values[i]
-        exchange_alpha_matrix[p1_index_ex, p0_index] = alpha_per_hypothesis[i]
+    if 'graphical' in methods:
+        exchange_pvalue_matrix = np.zeros((n_policies, n_policies))
+        exchange_alpha_matrix = np.zeros((n_policies, n_policies))
+        for i, (p0_index, p1_index) in enumerate(null_hypotheses_policy_indices):
+            p1_index_ex = n_policies - 1 - p1_index
+            exchange_pvalue_matrix[p1_index_ex, p0_index] = p_values[i]
+            exchange_alpha_matrix[p1_index_ex, p0_index] = alpha_per_hypothesis[i]
 
-    os.makedirs(f'{results_dir}/exchange_matrices', exist_ok=True)
-    plot_heatmap(
-        exchange_pvalue_matrix,
-        title='Graphical Multitest: p-values for each hypothesis',
-        save_path=f'{results_dir}/exchange_matrices/graphical_multitest_pvalues_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
-        real_sim_means=real_sim_means, fmt='.2e', figsize=figsize,
-    )
-    plot_heatmap(
-        exchange_alpha_matrix,
-        title='Graphical Multitest: alpha allocated for each hypothesis',
-        save_path=f'{results_dir}/exchange_matrices/graphical_multitest_alpha_allocation_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
-        real_sim_means=real_sim_means, fmt='.2e', figsize=figsize,
-    )
+        os.makedirs(f'{results_dir}/exchange_matrices', exist_ok=True)
+        plot_heatmap(
+            exchange_pvalue_matrix,
+            title='Graphical Multitest: p-values for each hypothesis',
+            save_path=f'{results_dir}/exchange_matrices/graphical_multitest_pvalues_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+            real_sim_means=real_sim_means, fmt='.2e', figsize=figsize,
+        )
+        plot_heatmap(
+            exchange_alpha_matrix,
+            title='Graphical Multitest: alpha allocated for each hypothesis',
+            save_path=f'{results_dir}/exchange_matrices/graphical_multitest_alpha_allocation_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.png',
+            real_sim_means=real_sim_means, fmt='.2e', figsize=figsize,
+        )
 
     np.save(f'{results_dir}/sample_complexity/graphical_multitest_samples_per_policy_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', samples)
     np.save(f'{results_dir}/sample_complexity/bonferroni_multitest_samples_per_policy_N{Nmax}_n{n_prior}_alpha{alpha}_beta{beta}.npy', samples_bonferroni)
@@ -779,14 +849,15 @@ def run_experiments(
         f.write(f"Fixed Sequence:                        {true_sample_complexity_fixed}  (rejected {mean_rejected['fixed']:.1f}/{n_hypotheses})\n")
     print(f"Actual sample complexities written to {sc_path}")
     print()
-    print("Decision times: ")
-    with np.printoptions(precision=3, suppress=True):
-        print(decision_times)
-    print()
-    print("alpha at rejected:")
-    with np.printoptions(precision=3, suppress=True):
-        print(alpha_at_rejected)
-    print("------------------------")
+    if 'graphical' in methods:
+        print("Decision times: ")
+        with np.printoptions(precision=3, suppress=True):
+            print(decision_times)
+        print()
+        print("alpha at rejected:")
+        with np.printoptions(precision=3, suppress=True):
+            print(alpha_at_rejected)
+        print("------------------------")
 
     #############################################
     # Plotting exchange matrices as heatmaps
@@ -1067,7 +1138,7 @@ def visualize_weighted_graph(weighted_G, ordered_null_hypotheses, save_path=None
         plt.show()
 
 
-def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None, labels=None):
+def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None, labels=None, methods=None, allow_transitive=False):
     """
     Main function to run experiments.
 
@@ -1126,7 +1197,6 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
 
     alpha_per_hypothesis = allocate_alpha(ordered_hyp_diffs, cfg.alpha, beta=cfg.beta)
     alpha_per_hypothesis_weighted_bonferroni = allocate_alpha(ordered_hyp_diffs, cfg.alpha, beta=-cfg.beta)
-    
     # Fully connected graph
     weighted_G_full = fully_connected_graph(ordered_null_hypotheses, cfg)
 
@@ -1156,5 +1226,5 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
         policy_matrix, Nmax, alpha_per_hypothesis,
         alpha_per_hypothesis_weighted_bonferroni, weighted_G,
         policy_index, real_sim_means, bernoulli,
-        cfg=cfg, labels=plot_labels,
+        cfg=cfg, labels=plot_labels, methods=methods, allow_transitive=allow_transitive,
     )

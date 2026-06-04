@@ -73,6 +73,7 @@ def get_cld_dict_generic(method_empirical_means, method_input_lists):
             m for m, _ in sorted(empirical_means.items(), key=lambda kv: kv[1], reverse=True)
         ]
         letters_list = compact_letter_display(method_input_lists.get(method, []), sorted_models)
+        
         result[method] = dict(zip(sorted_models, letters_list))
     return result
 
@@ -115,11 +116,21 @@ def get_cld_letters_from_ttds(progress_array_dict, ttd_dicts, max_sample_size_pe
         max_ttd = {alg: 0 for alg in policies}
         input_list = []
 
+        
+
         for (alg1, alg2), ttd in ttd_dict.items():
             max_sample_size_hyp = min(max_sample_size_per_model[alg1], max_sample_size_per_model[alg2])
+            
+            ## TODO: Correct logic for final plot
             ttd_val = max_sample_size_hyp if ttd == "N/A" else int(ttd)
             if ttd_val < max_sample_size_hyp:
                 input_list.append((alg1, alg2))
+            
+            # if ttd != "N/A":
+            #     ttd_val = int(ttd)
+            #     input_list.append((alg1, alg2))
+            # else:
+            #     ttd_val = max_sample_size_hyp
             max_ttd[alg1] = max(ttd_val, max_ttd.get(alg1, 0))
             max_ttd[alg2] = max(ttd_val, max_ttd.get(alg2, 0))
 
@@ -161,7 +172,7 @@ def make_violin_plots_from_ttds(
         Ordered list of policy names.
     labels : list[str]
         Display labels corresponding to policies (same length and order).
-    max_sample_size_per_model : int
+    max_sample_size_per_model : dict
         Threshold above which a pair is considered undecided.
     output_dir : str
         Directory where figures (.png) and bundles (.npz/.json) are saved.
