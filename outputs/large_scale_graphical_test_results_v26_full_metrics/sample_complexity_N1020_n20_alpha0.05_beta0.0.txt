@@ -1,0 +1,5 @@
+Policy 0: Graphical=180.90, EGraphical=169.27, Bonferroni=231.13, Fixed=144.76, Weighted_Bonferroni=315.08
+Policy 1: Graphical=430.54, EGraphical=419.05, Bonferroni=663.77, Fixed=471.57, Weighted_Bonferroni=814.05
+Policy 2: Graphical=418.81, EGraphical=411.58, Bonferroni=652.38, Fixed=461.29, Weighted_Bonferroni=801.83
+Policy 3: Graphical=148.84, EGraphical=138.06, Bonferroni=182.47, Fixed=114.75, Weighted_Bonferroni=241.29
+Policy 4: Graphical=65.11, EGraphical=62.65, Bonferroni=73.52, Fixed=46.81, Weighted_Bonferroni=99.61

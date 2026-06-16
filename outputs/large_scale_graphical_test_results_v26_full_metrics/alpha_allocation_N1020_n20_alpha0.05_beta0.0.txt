@@ -1,0 +1,10 @@
+Hypothesis 0 (mu0=0.20, mu1=0.35): alpha = 0.0050
+Hypothesis 1 (mu0=0.20, mu1=0.45): alpha = 0.0050
+Hypothesis 2 (mu0=0.20, mu1=0.65): alpha = 0.0050
+Hypothesis 3 (mu0=0.20, mu1=0.90): alpha = 0.0050
+Hypothesis 4 (mu0=0.35, mu1=0.45): alpha = 0.0050
+Hypothesis 5 (mu0=0.35, mu1=0.65): alpha = 0.0050
+Hypothesis 6 (mu0=0.35, mu1=0.90): alpha = 0.0050
+Hypothesis 7 (mu0=0.45, mu1=0.65): alpha = 0.0050
+Hypothesis 8 (mu0=0.45, mu1=0.90): alpha = 0.0050
+Hypothesis 9 (mu0=0.65, mu1=0.90): alpha = 0.0050
