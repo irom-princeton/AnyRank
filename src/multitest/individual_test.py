@@ -10,6 +10,7 @@ import numpy as np
 import os
 import copy
 import tqdm
+import pickle as pkl
 import tempfile
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, asdict
@@ -668,6 +669,7 @@ def run_experiments(
         policy_index[i]: policy_data[:, i][~np.isnan(policy_data[:, i])]
         for i in range(n_policies)
     }
+
     ttd_dicts_for_ranking = {
         "graphical":           {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd.items()},
         "evalues":             {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_evalues.items()},
@@ -677,6 +679,23 @@ def run_experiments(
         "weighted_bonferroni": {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_weighted_bonferroni.items()},
         "fixed":               {(policy_index[i], policy_index[j]): ttd for (i, j), ttd in avg_ttd_fixed.items()},
     }
+
+    plot_data = {
+        "policy_names": policy_names,
+        "progress_array_dict_cld": progress_array_dict_cld,
+        "ttd_dicts_for_ranking": ttd_dicts_for_ranking,
+        "max_sample_size_per_model": max_sample_size_per_model,
+    }
+
+    save_path = os.path.join(results_dir, "cld_violin_plot_data.pkl")
+
+    with open(save_path, "wb") as f:
+        pkl.dump(plot_data, f)
+
+    print("CLD Data saved to", save_path)
+    
+    # Save information for making violin plot:
+    
     cld_results_for_ranking = get_cld_letters_from_ttds(
         progress_array_dict_cld, ttd_dicts_for_ranking, max_sample_size_per_model, policy_names
     )

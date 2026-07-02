@@ -115,9 +115,7 @@ if __name__ == '__main__':
 
     methods = args.methods  # None means all
 
-    beta_range = [0, 1, 5, 10, 25, 50]
-    beta_range = [1,10]
-
+    beta_range = [1]
     four_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
     seven_policies = ["paligemma_binning_droid",
             "pi0_droid",
@@ -126,7 +124,6 @@ if __name__ == '__main__':
             "paligemma_fast_specialist_droid",
             "paligemma_fast_droid",
             "pi0_fast_droid"]
-
     plot_policy_names = {
         "paligemma_binning_droid":        "PG-Bin",
         "paligemma_diffusion_droid":      "PG-Diff",
@@ -136,6 +133,7 @@ if __name__ == '__main__':
         "pi0_droid":                      r"$\pi_0$",
         "pi0_fast_droid":                 r"$\pi_0$-Fast",
     }
+    
 
     exp_name = args.exp_name
 
@@ -176,11 +174,36 @@ if __name__ == '__main__':
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
-    if exp_name == "roboarena7_wm_prior_0.1_half_data":
+    if exp_name == "roboarena7_wm_prior_0.1_half_new_run":
         for beta in beta_range:
             WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             cap_samples = {k: v[:len(v)//2] for k, v in policy_data.items()}
+            # cap_samples = {k: v[:50] for k, v in policy_data.items()}
+            main(cap_samples, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
+
+    if exp_name == "roboarena7_wm_prior_0.1_half_plus_150":
+        for beta in beta_range:
+            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
+            cap_samples = {k: v[:len(v)//2+150] for k, v in policy_data.items()}
+            # cap_samples = {k: v[:50] for k, v in policy_data.items()}
+            main(cap_samples, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
+
+    if exp_name == "roboarena7_wm_prior_0.1_half_plus_100":
+        for beta in beta_range:
+            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
+            cap_samples = {k: v[:len(v)//2+100] for k, v in policy_data.items()}
+            # cap_samples = {k: v[:50] for k, v in policy_data.items()}
+            main(cap_samples, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
+
+    if exp_name == "roboarena7_wm_prior_0.1_50":
+        for beta in beta_range:
+            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
+            cap_samples = {k: v[:50] for k, v in policy_data.items()}
+            # cap_samples = {k: v[:50] for k, v in policy_data.items()}
             main(cap_samples, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     if exp_name == "test_fixed_sequence":

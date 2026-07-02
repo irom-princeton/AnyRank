@@ -72,6 +72,7 @@ def get_cld_dict_generic(method_empirical_means, method_input_lists):
         sorted_models = [
             m for m, _ in sorted(empirical_means.items(), key=lambda kv: kv[1], reverse=True)
         ]
+
         letters_list = compact_letter_display(method_input_lists.get(method, []), sorted_models)
         
         result[method] = dict(zip(sorted_models, letters_list))
@@ -115,8 +116,6 @@ def get_cld_letters_from_ttds(progress_array_dict, ttd_dicts, max_sample_size_pe
     for method, ttd_dict in ttd_dicts.items():
         max_ttd = {alg: 0 for alg in policies}
         input_list = []
-
-        
 
         for (alg1, alg2), ttd in ttd_dict.items():
             max_sample_size_hyp = min(max_sample_size_per_model[alg1], max_sample_size_per_model[alg2])

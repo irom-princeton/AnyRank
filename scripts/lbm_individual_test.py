@@ -167,28 +167,36 @@ def _results_dir(subfolder, name):
 
 def run_graphical_experiment_A(beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = experiment_A()
-    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_A'), graph_type=graph_type)
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+    corr = get_corr(real_means, sim_means)
+    print(f"Correlation between real and sim means: {corr:.4f}")
+    # cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_A'), graph_type=graph_type)
+    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def run_graphical_experiment_B(id=True, ood=False, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
+    corr = get_corr(real_means, sim_means)
+    print(f"Correlation between real and sim means: {corr:.4f}")
+    # cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_B_id_{}_ood_{}'.format(id, ood)), graph_type=graph_type)
+    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+
+def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+    policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
+    corr = get_corr(real_means, sim_means)
+    print(f"Correlation between real and sim means: {corr:.4f}")
+    # Print the number of evals per policy:
+    # for policy, trials in policy_data.items():
+    #     print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
+    # cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift)), graph_type=graph_type)
+    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+
+    
+def get_corr(real_means, sim_means):
     keys = list(real_means.keys())
     real_vec = np.array([real_means[k] for k in keys])
     sim_vec = np.array([sim_means[k] for k in keys])
     corr = np.corrcoef(real_vec, sim_vec)[0, 1]
-    print(f"Correlation between real and sim means: {corr:.4f}")
-    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_B_id_{}_ood_{}'.format(id, ood)), graph_type=graph_type)
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+    return corr
 
-def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
-    policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
-    # Print the number of evals per policy:
-    for policy, trials in policy_data.items():
-        print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
-    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, 'experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift)), graph_type=graph_type)
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
-
-    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/lbm_graphical_test/")
@@ -209,7 +217,7 @@ if __name__ == "__main__":
     
     df = load_full_data(FULL_DATA_DIR / "Fig2.csv")
     beta_range = [0, 1, 5]
-
+    beta_range = [1]
     plot_policy_names = {
         "Single Task":                    "ST",
         "LBM finetuned":                  "LBM-FT",
@@ -237,7 +245,7 @@ if __name__ == "__main__":
         run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID only
 
         # Experiment B: Out-of-distribution performance comparison
-        run_graphical_experiment_B(id=False, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # OOD only
+        # run_graphical_experiment_B(id=False, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # OOD only
 
         ## Experiment B: Out-of-distribution and nominal performance comparison
         run_graphical_experiment_B(id=True, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID and OOD
