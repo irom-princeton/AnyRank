@@ -3,7 +3,7 @@
 ####
 
 from multitest.plot_cld import make_violin_plots_from_ttds, get_cld_letters_from_ttds
-from roboarena_individual_test import get_real_evals
+# from multitest.scripts.roboarena_individual_test import get_real_evals
 import os
 import pickle
 import matplotlib.pyplot as plt
@@ -74,6 +74,29 @@ EXP_NAMES = {
     "roboarena4": "RoboArena4 (Heldout Evals Prior)",
 }
 
+
+def get_real_evals(data_bins=["data1"], selected_policies=[]):
+    filename = "per_trial_progress_data.csv"
+    if selected_policies:
+        keys = selected_policies
+    else:
+        keys = [
+            "paligemma_binning_droid",
+            "pi0_droid",
+            "paligemma_vq_droid",
+            "paligemma_fast_specialist_droid",
+            "paligemma_fast_droid",
+            "paligemma_diffusion_droid",
+            "pi0_fast_droid",
+        ]
+    eval_results = {k: np.array([]) for k in keys}
+    for data_bin in data_bins:
+        data_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "roboarena", data_bin, filename)
+        df = pd.read_csv(data_path)
+        for k in keys:
+            eval_results[k] = np.concatenate([eval_results[k], df[k].dropna().to_numpy()])
+    return eval_results
+
 def roboarena_wm_experiment(selected_policies=None, wm_prior_path=None, cfg=None):
     """Load roboarena data and return the generic inputs needed by main()."""
     if cfg is None:
@@ -94,7 +117,6 @@ def roboarena_wm_experiment(selected_policies=None, wm_prior_path=None, cfg=None
     sim_means = {k: np.mean(wm_evals[k]) for k in policies}
     real_means = {k: np.mean(real_evals[k]) for k in policies}
     return policy_data, policies, sim_means, real_means, bernoulli
-
 
 
 def parse_inputs_from_file(
@@ -238,7 +260,7 @@ def parse_inputs(
     return hypothesis_samples, hypotheses_correct
  
  
-def plot_sample_complexity(
+def plot_efficiency(
     results_path: str,
     method_key: str,
     policy_names: list[str],
@@ -306,8 +328,77 @@ def plot_sample_complexity(
     label = f"{label:<24} {max_rejected:2d}/{len(hypotheses_correct):2d}" if label else None
     ax.scatter(xs, ys, s=point_size, color=color, alpha=alpha, marker=marker, label=label, zorder=3, edgecolors="black", clip_on=False)
     return ax
+
+
+def plot_sample_complexity(
+    results_path: str,
+    method_key: str,
+    policy_names: list[str],
+    max_sample_size_per_model: dict[str, float],
+    color: str = "#185FA5",
+    alpha: float = 1.0,
+    marker: str | None = None,
+    label: str | None = None,
+    point_size: float = 120,
+    ax: plt.Axes | None = None,
+) -> plt.Axes:
+    """
+    Plot one method's scatter of cumulative hypotheses rejected vs. sample efficiency.
+    Intended to be called once per method when overlaying multiple methods.
  
+        sample_efficiency = 1 - cumulative_samples_consumed / total_samples
+    where total_samples = sum(max_sample_size_per_model.values()).
  
+    Parameters
+    ----------
+    results_path : str
+        Path to JSON results file.
+    method_key : str
+        Key into decision_times/hypotheses_correct, e.g. "graphical_active".
+    policy_names : list[str]
+        Index-to-name mapping.
+    max_sample_size_per_model : dict[str, float]
+        Maps policy name -> max evaluations. Used for N/A replacement and
+        as total_samples denominator (summed across all policies).
+    color : str
+        Scatter point color for this method.
+    label : str or None
+        Legend label for this method.
+    point_size : float
+        Marker size.
+    ax : plt.Axes or None
+        Axes to draw on. If None, a new figure is created.
+ 
+    Returns
+    -------
+    ax : plt.Axes
+    """
+    hypothesis_samples, hypotheses_correct = parse_inputs(
+        results_path, method_key, policy_names, max_sample_size_per_model
+    )
+    total_samples = sum(max_sample_size_per_model.values())
+ 
+    sorted_pairs = sorted(hypothesis_samples.items(), key=lambda kv: kv[1])
+ 
+    xs, ys = [], []
+    max_samples_seen = 0
+    cum_rejected = 0
+    for key, n_samples in sorted_pairs:
+        # values are absolute sample counts, not deltas — track running max
+        max_samples_seen = max(max_samples_seen, n_samples)
+        if hypotheses_correct.get(key, 0) != 0:
+            cum_rejected += 1
+            xs.append(-1*max_samples_seen)
+            ys.append(cum_rejected)
+ 
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4, 4))
+    
+    max_rejected = np.max(ys)
+    label = f"{label:<24} {max_rejected:2d}/{len(hypotheses_correct):2d}" if label else None
+    ax.scatter(xs, ys, s=point_size, color=color, alpha=alpha, marker=marker, label=label, zorder=3, edgecolors="black", clip_on=False)
+    return ax
+
 def plot_sample_complexity_multi(
     methods: dict[str, tuple[str, str] | str],
     policy_names: list[str],
@@ -317,6 +408,7 @@ def plot_sample_complexity_multi(
     point_size: float =120,
     figsize: tuple[float, float] = (4, 4),
     title: str | None = None,
+    plot_type="efficiency"
 ) -> plt.Axes:
     """
     Overlay multiple methods on one scatter plot.
@@ -375,12 +467,6 @@ def plot_sample_complexity_multi(
  
     fig, ax = plt.subplots(figsize=figsize)
 
-    bax = brokenaxes(
-        xlims=((0.80, 0.90), (0.985, 1.005)),  # two x-ranges, gap between them
-        hspace=0.05,
-        fig=fig,
-    )
-
     for idx, (display_name, method_spec) in enumerate(methods.items()):
         if isinstance(method_spec, tuple):
             path, method_key = method_spec
@@ -394,48 +480,65 @@ def plot_sample_complexity_multi(
  
         color = color_map.get(display_name, default_cycle[idx % len(default_cycle)])
         alpha = color_alpha.get(display_name, 0.8)  # add alpha for transparency
-        plot_sample_complexity(
-            results_path=path,
-            method_key=method_key,
-            policy_names=policy_names,
-            max_sample_size_per_model=max_sample_size_per_model,
-            color=color,
-            alpha=alpha,
-            marker=METHOD_MARKERS.get(display_name, "o"),
-            label=display_name,
-            point_size=point_size,
-            ax=bax,
-        )
+
+        if plot_type == "efficiency":
+            plot_efficiency(
+                results_path=path,
+                method_key=method_key,
+                policy_names=policy_names,
+                max_sample_size_per_model=max_sample_size_per_model,
+                color=color,
+                alpha=alpha,
+                marker=METHOD_MARKERS.get(display_name, "o"),
+                label=display_name,
+                point_size=point_size,
+                ax=ax,
+            )
+        else:
+            plot_sample_complexity(
+                results_path=path,
+                method_key=method_key,
+                policy_names=policy_names,
+                max_sample_size_per_model=max_sample_size_per_model,
+                color=color,
+                alpha=alpha,
+                marker=METHOD_MARKERS.get(display_name, "o"),
+                label=display_name,
+                point_size=point_size,
+                ax=ax,
+            )
     
-    bax.set_xlabel("Sample Efficiency", fontsize=12)
-    # ax.set_xlabel("Sample Efficiency  (1 − evals required / total available)", fontsize=11)
-    bax.set_ylabel("Hypotheses Rejected", fontsize=12)
+    ax.set_xlabel("Sample Efficiency", fontsize=12)
+    ax.set_ylabel("Hypotheses Rejected", fontsize=12)
  
     if title:
-        bax.set_title(title, fontsize=14)
- 
-    bax.legend(frameon=True, fontsize=10, loc="lower left")
-    bax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-    bax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.2f}"))
-    bax.tick_params(labelsize=10)
-    bax.spines["top"].set_visible(False)
-    bax.spines["right"].set_visible(False)
-    bax.set_axisbelow(True)
-    all_x = [pt.get_offsets()[:, 0].min() for pt in bax.collections if len(pt.get_offsets())]
-    all_y = [pt.get_offsets()[:, 1].max() for pt in bax.collections if len(pt.get_offsets())]
-    x_min = min(all_x) - 0.01 if all_x else 0.0
-    x_min = int(x_min*10)/10
-    bax.set_xlim(x_min, 1)
-    bax.set_ylim(0, max(all_y)+1)
-    bax.grid(alpha=0.2)
+        ax.set_title(title, fontsize=14)
+    
+    if plot_type=="complexity":
+        ax.legend(frameon=True, fontsize=10, loc="lower left")
+    else:
+        ax.legend(frameon=True, fontsize=10, loc="lower left")
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.2f}"))
+    ax.tick_params(labelsize=10)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_axisbelow(True)
+    all_x = [pt.get_offsets()[:, 0].min() for pt in ax.collections if len(pt.get_offsets())]
+    all_y = [pt.get_offsets()[:, 1].max() for pt in ax.collections if len(pt.get_offsets())]
+    # x_min = min(all_x) - 0.01 if all_x else 0.0
+    # x_min = int(x_min*10)/10
+    # ax.set_xlim(x_min, 1)
+    ax.set_ylim(0, max(all_y)+1)
+    ax.grid(alpha=0.2)
     plt.tight_layout()
     return ax
 # ---------------------------------------------------------------------------
 # Example usage
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    # results_dir = "/n/fs/irom-testing/multitest/roboarena_outputs_graphical_active/roboarena_graphical_active_fully_connected_transitive/roboarena7_wm_prior_0.1_half_plus_50"
-    meta_results_dir = "/n/fs/irom-testing/multitest/corl_sub"
+    meta_results_dir = "/n/fs/irom-testing/multitest/roboarena_outputs_graphical_active"
+    postfix = "alpha_0.05_2026-07-29"
     method_names= [
         "AnyRank",
         r"AnyRank$_0$",
@@ -446,6 +549,7 @@ if __name__ == "__main__":
     methods_dict = {"AnyRank": "graphical_active",  r"AnyRank$_0$": "graphical_active", r"AnyRank$_\infty$": "fixed", "Bonferroni": "bonferroni", "Weighted\nBonferroni": "weighted_bonferroni"}
     methods = {m: None for m in method_names}
     beta = 1
+    plot_type="complexity"
 
     for exp_name in ["roboarena4_wm_prior", "roboarena7_wm_prior", "roboarena4", "roboarena7"]:
         for m in method_names:
@@ -454,7 +558,10 @@ if __name__ == "__main__":
             else:
                 beta=1
             method_ref = methods_dict[m]
-            results_dir = os.path.join(meta_results_dir, f"roboarena_{method_ref}_fully_connected_transitive", exp_name)
+            if postfix != "":
+                results_dir = os.path.join(meta_results_dir, f"roboarena_{method_ref}_fully_connected_transitive_{postfix}", exp_name)
+            else:
+                results_dir = os.path.join(meta_results_dir, f"roboarena_{method_ref}_fully_connected_transitive", exp_name)
             hypotheses_reject_folder = os.path.join(results_dir, "rejection_order")
             for file in os.listdir(hypotheses_reject_folder):
                 if "decision_times" in file and f"beta{beta}.json" in file:
@@ -527,10 +634,14 @@ if __name__ == "__main__":
             methods=methods,
             policy_names=policies,
             max_sample_size_per_model=max_sample_size_per_model,
-            title=EXP_NAMES[exp_name]
+            title=EXP_NAMES[exp_name],
+            plot_type=plot_type
         )
 
-        save_dir = os.path.join("imglib", exp_name, "sample_complexity")
+        if plot_type == "efficiency":
+            save_dir = os.path.join("imglib", exp_name, "sample_efficiency")
+        else:
+            save_dir = os.path.join("imglib", exp_name, "sample_complexity")
         os.makedirs(save_dir, exist_ok=True)
         plt.savefig(os.path.join(save_dir, "sample_complexity.png"), dpi=600, bbox_inches="tight")
         print(f"Saved figure to: {os.path.join(save_dir, 'sample_complexity.png')}")

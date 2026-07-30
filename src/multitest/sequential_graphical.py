@@ -30,6 +30,11 @@ class SequentialGraphicalTest:
         self.alpha : Sequence[float]=np.array([self.total_alpha/self.num_hypotheses for _ in range(self.num_hypotheses)]) # equal split
         self.null_nypotheses = null_hypotheses
         self.hypothesis_labels = [f"H{i}\nμ₀={mu0:.2f}, μ₁={mu1:.2f}" for i, (mu0, mu1) in enumerate(null_hypotheses)]
+        # Per-step graph rendering for the animation GIF. Off by default: each
+        # frame is a fresh, never-closed matplotlib figure whose size scales with
+        # num_hypotheses (figsize grows as ~2.5*H), so it leaks memory and OOMs
+        # for large hypothesis counts. Only the animation uses these frames.
+        self.enable_animation = False
         self.check_params()
 
     def set_params(self, G: Optional = None, alpha:Optional = None, total_alpha:Optional = None):
@@ -196,8 +201,10 @@ class SequentialGraphicalTest:
 
                 # If transitivity is allowed, we also consider candidates that can be rejected via transitivity based on the current set of rejected hypotheses and the graph structure. Specifically, if rejecting a hypothesis H_i would imply (via the graph) that another hypothesis H_j should also be rejected, then we can consider H_j as a candidate for rejection as well, even if p[j] > alpha[j], since we would reject it based on transitivity.
 
-            # Plot graphs:
-            graphs_over_time.append(self.plot_graph())
+            # Plot graphs (animation frames only; skipped by default to avoid
+            # accumulating huge, never-closed figures — an OOM at scale).
+            if self.enable_animation:
+                graphs_over_time.append(self.plot_graph())
             if verbose:
                 print(self.G)
             

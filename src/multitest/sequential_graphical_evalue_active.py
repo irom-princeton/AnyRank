@@ -325,7 +325,7 @@ class SequentialGraphicalTest:
         return decision_str, time_of_decision
 
 
-    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False, bernoulli=False):
+    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False, bernoulli=False, beta=1.0):
         '''
         Similar to graphical_multitest but we will run the graphical test sequentially after each new p-value is computed and update the graph and alpha budgets accordingly.
         '''
@@ -427,6 +427,16 @@ class SequentialGraphicalTest:
             # Active data collection:
             for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
                 # print(f"Processing hypothesis {i}, policies {hypothesis_policy_indices}, at iteration {iters}: ", self.alpha[i] >= (self.total_alpha / num_hypotheses))
+                # tmp = np.exp(beta * active_alpha) - 1.0
+                # try:
+                #     p_select_hypothesis_to_sample = tmp / np.linalg.norm(tmp, 1)
+                # except: 
+                #     p_select_hypothesis_to_sample = np.ones(active_alpha.shape[0]) / float(active_alpha.shape[0])
+
+                # assert np.isclose(np.sum(p_select_hypothesis_to_sample), 1.0)
+
+                # select according to this distribution
+                idx_to_sample = np.random.choice(active_alpha.shape[0], p=p_select_hypothesis_to_sample)
                 if hypotheses_completed[i] <= 0.5 and self.alpha[i] >= (np.max(active_alpha)-1e-8): # Collect data only if: (a) active and (b) actively preferred
                     p0_index, p1_index = hypothesis_policy_indices
                     data0 = policy_data[:, p0_index]

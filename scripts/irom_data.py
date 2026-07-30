@@ -10,7 +10,9 @@ import pandas as pd
 import ast
 from multitest.individual_test import ExperimentConfig, main
 from pathlib import Path
+from datetime import datetime
 
+date = datetime.now().strftime("%Y-%m-%d")
 ########################################
 #### Data Loading and Preprocessing ####
 ########################################
@@ -126,22 +128,23 @@ def _results_dir(subfolder, name):
     base = 'irom_data_outputs'
     return os.path.join(base, subfolder, name) if subfolder else os.path.join(base, name)
 
-def run_graphical_carrot(wm, init_cond, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+def run_graphical_carrot(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = carrot(wm, init_cond)
-    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, f'carrot_wm_{wm}_init_{init_cond}'), graph_type=graph_type)
+    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'carrot_wm_{wm}_init_{init_cond}'), graph_type=graph_type)
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=False, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
-def run_graphical_towel(wm, init_cond, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+def run_graphical_towel(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = towel(wm, init_cond)
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
-    cfg = ExperimentConfig(alpha=0.1, beta=beta, results_dir=_results_dir(subfolder, f'towel_wm_{wm}_init_{init_cond}'), graph_type=graph_type)
+    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'towel_wm_{wm}_init_{init_cond}'), graph_type=graph_type)
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=False, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/lbm_graphical_test/")
+    parser.add_argument("--alpha", type=float, default=0.05, help="Significance level for statistical tests")
     parser.add_argument("--graph_type", type=str, default="fully_connected",
                         choices=["soft_masked", "fully_connected"],
                         help="Graph type for alpha transfer weights")
@@ -154,10 +157,15 @@ if __name__ == "__main__":
                         help=f"Methods to run (default: all). Choices: {', '.join(ALL_METHODS)}")
 
     args = parser.parse_args()
+    alpha = args.alpha
+    if args.subfolder is None:
+        args.subfolder = date
+    else:
+        args.subfolder = f"{args.subfolder}_{date}_alpha_{alpha}"
 
     methods = args.methods  # None means all
-
-    beta_range = [0, 10]
+    alpha = args.alpha
+    beta_range = [0, 1, 10]
     wm_types_towel = ["base"]
     init_conds_towel = ["new"]
 
@@ -165,8 +173,8 @@ if __name__ == "__main__":
     init_conds_carrot = ["new"]
 
     plot_policy_names = {
-        "pi05":          "pi0.5",
-        "pi0":           "pi0",
+        "pi05":          r"$\pi_{0.5}$",
+        "pi0":           r"$\pi_0$",
         "v2_30demo":     "DP (30)",
         "v2_half":       "DP (half)",
         "v2_miss2":      "DP (miss2)",
@@ -179,8 +187,8 @@ if __name__ == "__main__":
     for beta in beta_range:
         for wm in wm_types_towel:
             for init_cond in init_conds_towel:
-                # run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
-                run_graphical_towel(wm=wm, init_cond=init_cond, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+                # run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+                run_graphical_towel(wm=wm, init_cond=init_cond, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
 
     for beta in beta_range:
         for wm in wm_types_carrot:

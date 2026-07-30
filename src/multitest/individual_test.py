@@ -30,7 +30,7 @@ class ExperimentConfig:
     Nmax: int = 5000
     n_runs: int = 1
     n_prior: int = 20
-    alpha: float = 0.1
+    alpha: float = 0.05
     figsize: tuple = (12, 10)
     beta: float = 1.0                  # tuning parameter for alpha allocation in graphical test
     plot_from_saved: bool = False      # set to True to plot from saved data
@@ -1239,6 +1239,9 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
             print(line.strip())
             f.write(line)
 
+    for p in policies:
+        if p not in labels:
+            labels[p] = p
     plot_labels = [labels[p] for p in policies] if labels is not None else None
     run_experiments(
         n_policies, ordered_hypotheses,

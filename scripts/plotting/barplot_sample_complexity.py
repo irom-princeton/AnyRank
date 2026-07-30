@@ -1,4 +1,5 @@
-# Compare sample complexity of methods with the same rejection rate, for each setting. This is a "fair" comparison since we only compare methods that achieve the same performance in terms of rejections.
+# Compare sample complexity of methods with the same rejection rate, for each setting. 
+# This is a "fair" comparison since we only compare methods that achieve the same performance in terms of rejections.
 import matplotlib.pyplot as plt
 import numpy as np
 import os

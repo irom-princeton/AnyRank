@@ -328,10 +328,10 @@ def load_roboarena_data(selected_policies=None, ignore_ties=False, Nmax=None):
         new_to_old = {i: i for i in range(len(policy_names))}
         policy_indices = list(range(len(policy_names)))
 
-    # if Nmax is not None:
-    #     pref_data = pref_data[:Nmax]
-    #     progress_data = progress_data[:Nmax]
-    #     pref_data_w_scores = pref_data_w_scores[:Nmax]
+    if Nmax is not None:
+        pref_data = pref_data[:Nmax]
+        progress_data = progress_data[:Nmax]
+        pref_data_w_scores = pref_data_w_scores[:Nmax]
     # Returns progress data as preferences!
     return (
         pref_data, progress_data, pref_data_w_scores, policy_names, policy_progress,
@@ -494,7 +494,7 @@ def roboarena_ranking_em(metric='preference', use_partials=False, subselect_and_
         if df.empty:
             return []
     
-    df = df.sample(n=Nmax, random_state=0) if Nmax is not None else df
+    # df = df.sample(n=Nmax, random_state=0) if Nmax is not None else df
     per_policy_counts = df["i"].value_counts().add(df["j"].value_counts(), fill_value=0).astype(int).to_dict()
     per_policy_counts = {int(k): v for k, v in per_policy_counts.items()}
     print(f"Loaded {len(df)} pairwise comparisons for {len(policy_names)} policies")
@@ -539,7 +539,7 @@ if __name__ == "__main__":
 
     bt_method = args.method
     # Nmax = 492/490
-    Nmax = 1150
+    Nmax = 1275
 
     if args.exp_name == "roboarena4":
         selected_policies = four_policies
