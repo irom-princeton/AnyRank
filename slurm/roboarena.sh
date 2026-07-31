@@ -10,7 +10,7 @@
 #SBATCH --mem=25G
 #SBATCH --partition=all
 #SBATCH --signal=USR1@60
-#SBATCH --array=0
+#SBATCH --array=0-3
 
 source ~/.bashrc
 
@@ -19,15 +19,18 @@ conda activate policy_comp
 cd /n/fs/irom-testing/multitest
 
 EXPERIMENTS=(
-    "roboarena7_wm_prior_0.1_half_new_run"
+    "roboarena4"
 )
 
 METHODS=(
+    "graphical_active"
+    "fixed"
+    "bonferroni"
     "weighted_bonferroni"
 )
 GRAPH_TYPE="fully_connected"
 
-
+ALPHA=${1:-0.05}
 NUM_METHODS=${#METHODS[@]}
 EXP_IDX=$((SLURM_ARRAY_TASK_ID / NUM_METHODS))
 METHOD_IDX=$((SLURM_ARRAY_TASK_ID % NUM_METHODS))
@@ -35,11 +38,12 @@ METHOD_IDX=$((SLURM_ARRAY_TASK_ID % NUM_METHODS))
 EXP_NAME=${EXPERIMENTS[$EXP_IDX]}
 METHOD=${METHODS[$METHOD_IDX]}
 
-SUBFOLDER="roboarena_${METHOD}_${GRAPH_TYPE}_transitive"
+SUBFOLDER="roboarena_${METHOD}_${GRAPH_TYPE}_transitive_alpha_${ALPHA}"
 echo "Running experiment: ${EXP_NAME}"
 
 python scripts/roboarena_individual_test.py \
     --subfolder "${SUBFOLDER}" \
     --exp_name "${EXP_NAME}" \
+    --alpha ${ALPHA} \
     --graph_type "${GRAPH_TYPE}" \
     --methods "${METHOD}"

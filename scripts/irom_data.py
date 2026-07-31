@@ -159,7 +159,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     alpha = args.alpha
     if args.subfolder is None:
-        args.subfolder = date
+        args.subfolder = f"{date}_alpha_{alpha}"
     else:
         args.subfolder = f"{args.subfolder}_{date}_alpha_{alpha}"
 

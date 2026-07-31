@@ -124,7 +124,7 @@ if __name__ == '__main__':
 
     methods = args.methods  # None means all
 
-    beta_range = [1]
+    beta_range = [0, 1, 10]
     four_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
     seven_policies = ["paligemma_binning_droid",
             "pi0_droid",

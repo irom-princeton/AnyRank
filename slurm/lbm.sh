@@ -17,7 +17,8 @@ conda activate policy_comp
 
 cd /n/fs/irom-testing/multitest
 
+ALPHA=${1:-0.1}
 SUBFOLDER="lbm_fully_connected_active_transitive"
 GRAPH_TYPE="fully_connected" # soft_masked, fully_connected
 
-python scripts/lbm_individual_test.py --subfolder "${SUBFOLDER}" --graph_type "${GRAPH_TYPE}"
+python scripts/lbm_individual_test.py --subfolder "${SUBFOLDER}" --graph_type "${GRAPH_TYPE}" --alpha "${ALPHA}"

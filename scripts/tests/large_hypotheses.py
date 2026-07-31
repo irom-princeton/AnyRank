@@ -134,6 +134,10 @@ if __name__ == '__main__':
     parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/<exp_name>/")
     parser.add_argument("--exp_name", type=str, default="roboarena7_wm_prior",
                         help="Experiment to run")
+    parser.add_argument("--alpha", type=float, default=0.05,
+                        help="Family-wise error rate (FWER) for multiple testing")
+    parser.add_argument("--beta", type=float, default=1.0,
+                        help="Beta parameter for weighted Bonferroni")
     parser.add_argument("--transitive", type=bool, default=True,
                         choices=[True, False],
                         help="Whether to use transitive policy evaluation")
@@ -152,8 +156,10 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=0, help="RNG seed for synthetic data")
     args = parser.parse_args()
     methods = args.methods  # None means all
+    alpha = args.alpha
 
-    beta_range = [1]
+    beta = args.beta
+    beta_range = [beta]
     four_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
     seven_policies = ["paligemma_binning_droid",
             "pi0_droid",
@@ -170,18 +176,19 @@ if __name__ == '__main__':
         "paligemma_fast_specialist_droid": "PG-Fast-Spec",
         "pi0_droid":                      r"$\pi_0$",
         "pi0_fast_droid":                 r"$\pi_0$-Fast",
+        "pi05_droid":                     r"$\pi_{0.5}$",
     }
     
 
     exp_name = args.exp_name
 
     def results_dir(name):
-        return os.path.join('roboarena_outputs_graphical_active', args.subfolder, name) if args.subfolder else os.path.join('outputs', name)
+        return os.path.join('roboarena_outputs_graphical_active', args.subfolder, name, f'alpha_{alpha}') if args.subfolder else os.path.join('outputs', name, f'alpha_{alpha}')
 
     ## RoboArena 4 with 20 heldout evals per policy
     if exp_name == "roboarena4":
         for beta in beta_range:
-            cfg = ExperimentConfig(beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
@@ -220,6 +227,12 @@ if __name__ == '__main__':
 
     elif exp_name == "all_policies_fixed":
         for beta in beta_range:
-            all_cfg = ExperimentConfig(beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            all_cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=all_cfg)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=all_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
+
+    elif exp_name == "all_policies_fixed_floppy":
+        for beta in beta_range:
+            all_cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=None, cfg=all_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=all_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)

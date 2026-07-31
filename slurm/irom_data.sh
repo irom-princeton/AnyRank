@@ -19,5 +19,6 @@ cd /n/fs/irom-testing/multitest
 
 SUBFOLDER="irom_data_outputs"
 GRAPH_TYPE="fully_connected" # soft_masked, fully_connected
+ALPHA=${1:-0.05}
 
-python scripts/irom_data.py --subfolder "${SUBFOLDER}" --graph_type "${GRAPH_TYPE}"
+python scripts/irom_data.py --subfolder "${SUBFOLDER}" --graph_type "${GRAPH_TYPE}" --alpha "${ALPHA}"
