@@ -19,7 +19,7 @@ conda activate policy_comp
 cd /n/fs/irom-testing/multitest
 
 EXPERIMENTS=(
-    "roboarena4_wm_prior_reshuffle"
+    "roboarena4_wm_prior_perfect_reshuffle"
 )
 
 METHODS=(

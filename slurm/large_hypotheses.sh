@@ -10,7 +10,7 @@
 #SBATCH --mem=32G
 #SBATCH --partition=all
 #SBATCH --signal=USR1@60
-#SBATCH --array=0
+#SBATCH --array=0-1
 
 source ~/.bashrc
 
@@ -19,10 +19,11 @@ conda activate policy_comp
 cd /n/fs/irom-testing/multitest
 
 EXPERIMENTS=(
-    "all_policies_fixed_floppy"
+    "synthetic_reshuffle"
 )
 
 METHODS=(
+    "graphical_active"
     "bonferroni"
 )
 GRAPH_TYPE="fully_connected"
@@ -32,7 +33,7 @@ NUM_METHODS=${#METHODS[@]}
 EXP_IDX=$((SLURM_ARRAY_TASK_ID / NUM_METHODS))
 METHOD_IDX=$((SLURM_ARRAY_TASK_ID % NUM_METHODS))
 
-ALPHA=${1:-0.05}
+ALPHA=${1:-0.1}
 EXP_NAME=${EXPERIMENTS[$EXP_IDX]}
 METHOD=${METHODS[$METHOD_IDX]}
 
@@ -42,7 +43,7 @@ echo "Running experiment: ${EXP_NAME}"
 python scripts/tests/large_hypotheses.py \
     --subfolder "${SUBFOLDER}" \
     --alpha ${ALPHA} \
-    --beta 0.0 \
+    --n_policies 20 \
     --exp_name "${EXP_NAME}" \
     --graph_type "${GRAPH_TYPE}" \
     --methods "${METHOD}"

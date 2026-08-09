@@ -91,7 +91,7 @@ def roboarena_experiment(selected_policies=None, cfg=None):
     return policy_data, policies, sim_means, real_means, bernoulli
 
 
-def synthetic_experiment(n_policies=10, n_sim=100, n_real=500, std=0.15, seed=0, cfg=None):
+def synthetic_experiment(n_policies=10, n_sim=100, n_real=5000, std=0.15, seed=0, cfg=None):
     """Generate synthetic policies with true means spread over [0, 1].
 
     Ten (by default) true means are drawn uniformly on [0, 1]. For each policy,
@@ -159,7 +159,7 @@ if __name__ == '__main__':
     alpha = args.alpha
 
     beta = args.beta
-    beta_range = [beta]
+    beta_range = [0,1]
     four_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
     seven_policies = ["paligemma_binning_droid",
             "pi0_droid",
@@ -225,7 +225,23 @@ if __name__ == '__main__':
             syn_labels = {p: f"P{i}" for i, p in enumerate(policies)}
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=syn_cfg, labels=syn_labels, methods=methods, allow_transitive=args.transitive)
 
-    elif exp_name == "all_policies_fixed":
+    if exp_name == "synthetic_reshuffle":
+        nruns = 10
+        result_dir = results_dir(exp_name + f"_npol_{args.n_policies}_nsim_{args.n_sim}_nreal_{args.n_real}")
+        for beta in beta_range:
+            for run in range(nruns):
+                syn_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=os.path.join(result_dir, f"run_{run}"), graph_type=args.graph_type)
+                policy_data, policies, sim_means, real_means, bernoulli = synthetic_experiment(
+                    n_policies=args.n_policies, n_sim=args.n_sim, n_real=args.n_real,
+                    std=args.std, seed=run, cfg=syn_cfg)
+                syn_labels = {p: f"P{i}" for i, p in enumerate(policies)}
+                if beta == 1:
+                    methods = ["graphical_active"]
+                else:
+                    methods = args.methods
+                main(policy_data, policies, sim_means, real_means, bernoulli, cfg=syn_cfg, labels=syn_labels, methods=methods, allow_transitive=args.transitive)
+
+    if exp_name == "all_policies_fixed":
         for beta in beta_range:
             all_cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=all_cfg)

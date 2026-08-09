@@ -125,7 +125,7 @@ if __name__ == '__main__':
 
     methods = args.methods  # None means all
 
-    beta_range = [0, 1, 10]
+    beta_range = [1]
     four_policies = ["paligemma_binning_droid", "pi0_droid", "paligemma_diffusion_droid", "pi0_fast_droid"]
     seven_policies = ["paligemma_binning_droid",
             "pi0_droid",
@@ -163,6 +163,45 @@ if __name__ == '__main__':
                 policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=cfg)
                 sim_means = real_means.copy()  # Use perfect simulation means
                 main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
+
+    if exp_name == "roboarena4_wm_prior_imperfect":
+        for beta in beta_range:
+            cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=cfg)
+            real_mean_values = list(real_means.values())
+            sim_means["paligemma_binning_droid"]= real_means["pi0_fast_droid"]
+            sim_means["pi0_droid"] = real_means["paligemma_diffusion_droid"]
+            sim_means["paligemma_diffusion_droid"] = real_means["pi0_droid"]
+            sim_means["pi0_fast_droid"] = real_means["paligemma_binning_droid"]
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
+
+    if exp_name == "roboarena4_wm_prior_perfect_reshuffle":
+        nruns = 50
+        results_dir = results_dir(exp_name)
+        for beta in beta_range:
+            for run in range(nruns):
+                results_dir_run = os.path.join(results_dir, f"run_{run}")
+                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type)
+                policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=cfg)
+                sim_means = real_means.copy()  # Use perfect simulation means
+                reshuffled_policy_data = {k: np.random.permutation(v) for k, v in policy_data.items()}
+                main(reshuffled_policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
+
+    if exp_name == "roboarena4_wm_prior_imperfect_reshuffle":
+        nruns = 50
+        results_dir = results_dir(exp_name)
+        for beta in beta_range:
+            for run in range(nruns):
+                results_dir_run = os.path.join(results_dir, f"run_{run}")
+                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type)
+                policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=cfg)
+                # Reshuffle the policy data to simulate a different evaluation order
+                sim_means["paligemma_binning_droid"]= real_means["pi0_fast_droid"] - 0.1
+                sim_means["pi0_droid"] = real_means["paligemma_diffusion_droid"]
+                sim_means["paligemma_diffusion_droid"] = real_means["pi0_droid"]
+                sim_means["pi0_fast_droid"] = real_means["paligemma_binning_droid"] + 0.3
+                reshuffled_policy_data = {k: np.random.permutation(v) for k, v in policy_data.items()}
+                main(reshuffled_policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     if exp_name == "roboarena4_reshuffle":
         nruns = 20
