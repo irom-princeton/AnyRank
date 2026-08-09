@@ -146,7 +146,7 @@ def pairwise_tests_w_plot(policy_data, alpha, p0_index, p1_index, **kwargs):
     # Null hypothesis test
     axs[0].axhline(alpha, color="red", ls=":")
     axs[0].set_ylabel("P-value")
-    axs[0].set_title(r"$H_1: P_0 < P_1$")
+    axs[0].set_title(r"$H_1: P_0 > P_1$")
     axs[0].legend()
     axs[0].grid(alpha=0.3)
     # Null hypothesis test
@@ -158,7 +158,7 @@ def pairwise_tests_w_plot(policy_data, alpha, p0_index, p1_index, **kwargs):
     axs[1].axhline(alpha, color="red", ls=":")
     axs[1].set_ylabel("P-value")
     axs[1].set_xlabel("Number of Samples")
-    axs[1].set_title(r"$H_1: P_0 > P_1$")
+    axs[1].set_title(r"$H_1: P_0 < P_1$")
     axs[1].legend()
     axs[1].grid(alpha=0.3)
 
@@ -233,8 +233,8 @@ def roboarena_wm_experiment(selected_policies=None, wm_prior_path=None):
 if __name__ == "__main__":
     # Example usage
     alpha = 0.05
-    p0_index = 1
-    p1_index = 2
+    p0_index = 2
+    p1_index = 1
 
     seven_policies = ["paligemma_binning_droid",
             "pi0_droid",

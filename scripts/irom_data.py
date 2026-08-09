@@ -11,7 +11,7 @@ import ast
 from multitest.individual_test import ExperimentConfig, main
 from pathlib import Path
 from datetime import datetime
-
+import scipy.stats as stats
 date = datetime.now().strftime("%Y-%m-%d")
 ########################################
 #### Data Loading and Preprocessing ####
@@ -130,11 +130,19 @@ def _results_dir(subfolder, name):
 
 def run_graphical_carrot(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = carrot(wm, init_cond)
+    breakpoint()
+    real_means_values = list(real_means.values())
+    sim_means_values = list(sim_means.values())
+    pearson_corr, p_value = stats.pearsonr(real_means_values, sim_means_values)
+    print(f"Pearson correlation between real and sim means: {pearson_corr:.4f}, p-value: {p_value:.4f}")
+    spearman_corr, p_value_spearman = stats.spearmanr(real_means_values, sim_means_values)
+    print(f"Spearman correlation between real and sim means: {spearman_corr:.4f}, p-value: {p_value_spearman:.4f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'carrot_wm_{wm}_init_{init_cond}'), graph_type=graph_type)
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=False, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def run_graphical_towel(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = towel(wm, init_cond)
+    breakpoint()
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'towel_wm_{wm}_init_{init_cond}'), graph_type=graph_type)
@@ -144,7 +152,7 @@ def run_graphical_towel(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/lbm_graphical_test/")
-    parser.add_argument("--alpha", type=float, default=0.05, help="Significance level for statistical tests")
+    parser.add_argument("--alpha", type=float, default=0.1, help="Significance level for statistical tests")
     parser.add_argument("--graph_type", type=str, default="fully_connected",
                         choices=["soft_masked", "fully_connected"],
                         help="Graph type for alpha transfer weights")
@@ -170,7 +178,7 @@ if __name__ == "__main__":
     init_conds_towel = ["new"]
 
     wm_types_carrot = ["specialist"]
-    init_conds_carrot = ["new"]
+    init_conds_carrot = ["old"]
 
     plot_policy_names = {
         "pi05":          r"$\pi_{0.5}$",
@@ -189,6 +197,7 @@ if __name__ == "__main__":
             for init_cond in init_conds_towel:
                 # run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
                 run_graphical_towel(wm=wm, init_cond=init_cond, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+                # continue
 
     for beta in beta_range:
         for wm in wm_types_carrot:

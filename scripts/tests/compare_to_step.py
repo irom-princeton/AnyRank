@@ -111,7 +111,7 @@ def get_real_evals(data_bins=None, selected_policies=None):
     eval_results = {k: np.array([]) for k in keys}
     for data_bin in data_bins:
         data_path = os.path.join(
-            os.path.dirname(__file__), "..", "data", "roboarena", data_bin, filename
+            os.path.dirname(__file__), "..", "..", "data", "roboarena", data_bin, filename
         )
         df = pd.read_csv(data_path)
         for k in keys:

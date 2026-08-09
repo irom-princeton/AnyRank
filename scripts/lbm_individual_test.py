@@ -15,7 +15,8 @@ from pathlib import Path
 from datetime import datetime
 
 date = datetime.now().strftime("%Y-%m-%d")
-
+save_real_data_dir = "lbm_real_data"
+os.makedirs(save_real_data_dir, exist_ok=True)
 ########################################
 #### Data Loading and Preprocessing ####
 ########################################
@@ -83,6 +84,9 @@ def experiment_A():
         trials, success_rate, tri_rank = load_evals(df, hw_panel, tasks[0], policy)
         policy_data[policy] = trials
         real_means[policy] = success_rate
+        # Save real data
+        os.makedirs(f"{save_real_data_dir}/experiment_A", exist_ok=True)
+        pd.DataFrame({"success": trials}).to_csv(f"{save_real_data_dir}/experiment_A/policy_{policy}_data.csv", index=False)
         sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, tasks[0], policy)
         sim_means[policy] = sim_success_rate
     return policy_data, real_means, sim_means
@@ -126,10 +130,11 @@ def experiment_C(id=True, ood=False, distshift=None):
                 trials, success_rate, tri_rank = load_evals(df, hw_panel, hw_tasks[0], base_policy)
             
             policy_data[policy] = trials
+            os.makedirs(f"{save_real_data_dir}/experiment_C_{hw_panel.split('_')[3]}", exist_ok=True)
+            pd.DataFrame({"success": trials}).to_csv(f"{save_real_data_dir}/experiment_C_{hw_panel.split('_')[3]}/policy_{policy}_data.csv", index=False)
             real_means[policy] = success_rate
             sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, sim_tasks[0], base_policy)
             sim_means[policy] = sim_success_rate
-            
     return policy_data, real_means, sim_means
 
 def experiment_B(id = True, ood=False):
@@ -159,6 +164,9 @@ def experiment_B(id = True, ood=False):
             policy = f"{base_policy} ({hw_panel.split('_')[3]})"
             trials, success_rate, tri_rank = load_evals(df, hw_panel, tasks[0], base_policy)
             policy_data[policy] = trials
+            
+            os.makedirs(f"{save_real_data_dir}/experiment_B_{hw_panel.split('_')[3]}", exist_ok=True)
+            pd.DataFrame({"success": trials}).to_csv(f"{save_real_data_dir}/experiment_B_{hw_panel.split('_')[3]}/policy_{policy}_data.csv", index=False)
             real_means[policy] = success_rate
             sim_trials, sim_success_rate, sim_tri_rank = load_evals(df, sim_panel, tasks[0], base_policy)
             sim_means[policy] = sim_success_rate
@@ -173,14 +181,14 @@ def run_graphical_experiment_A(alpha=0.1, beta=1, labels=None, subfolder=None, g
     corr = get_corr(real_means, sim_means)
     print(f"Correlation between real and sim means: {corr:.4f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_A'), graph_type=graph_type)
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def run_graphical_experiment_B(id=True, ood=False, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
     corr = get_corr(real_means, sim_means)
     print(f"Correlation between real and sim means: {corr:.4f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_B_id_{}_ood_{}'.format(id, ood)), graph_type=graph_type)
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, alpha=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
@@ -190,7 +198,7 @@ def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, alpha
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift)), graph_type=graph_type)
-    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def get_corr(real_means, sim_means):
     keys = list(real_means.keys())

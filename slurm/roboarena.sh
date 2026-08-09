@@ -19,18 +19,18 @@ conda activate policy_comp
 cd /n/fs/irom-testing/multitest
 
 EXPERIMENTS=(
-    "roboarena4"
+    "roboarena4_wm_prior_reshuffle"
 )
 
 METHODS=(
     "graphical_active"
-    "fixed"
-    "bonferroni"
-    "weighted_bonferroni"
+    # "bonferroni"
+    # "weighted_bonferroni"
+    # "fixed"
 )
 GRAPH_TYPE="fully_connected"
 
-ALPHA=${1:-0.05}
+ALPHA=${1:-0.1}
 NUM_METHODS=${#METHODS[@]}
 EXP_IDX=$((SLURM_ARRAY_TASK_ID / NUM_METHODS))
 METHOD_IDX=$((SLURM_ARRAY_TASK_ID % NUM_METHODS))
