@@ -134,7 +134,7 @@ if __name__ == '__main__':
     parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/<exp_name>/")
     parser.add_argument("--exp_name", type=str, default="roboarena7_wm_prior",
                         help="Experiment to run")
-    parser.add_argument("--alpha", type=float, default=0.05,
+    parser.add_argument("--alpha", type=float, default=0.1,
                         help="Family-wise error rate (FWER) for multiple testing")
     parser.add_argument("--beta", type=float, default=1.0,
                         help="Beta parameter for weighted Bonferroni")
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     # Synthetic-experiment knobs (used only when --exp_name synthetic)
     parser.add_argument("--n_policies", type=int, default=10, help="Number of synthetic policies")
     parser.add_argument("--n_sim", type=int, default=100, help="Samples for the synthetic sim prior")
-    parser.add_argument("--n_real", type=int, default=500, help="Samples for the synthetic real evals")
+    parser.add_argument("--n_real", type=int, default=5000, help="Samples for the synthetic real evals")
     parser.add_argument("--std", type=float, default=0.15, help="Std of the synthetic Gaussian scores")
     parser.add_argument("--seed", type=int, default=0, help="RNG seed for synthetic data")
     args = parser.parse_args()
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     exp_name = args.exp_name
 
     def results_dir(name):
-        return os.path.join('roboarena_outputs_graphical_active', args.subfolder, name, f'alpha_{alpha}') if args.subfolder else os.path.join('outputs', name, f'alpha_{alpha}')
+        return os.path.join('roboarena_outputs_graphical_active_large', args.subfolder, name, f'alpha_{alpha}') if args.subfolder else os.path.join('outputs', name, f'alpha_{alpha}')
 
     ## RoboArena 4 with 20 heldout evals per policy
     if exp_name == "roboarena4":

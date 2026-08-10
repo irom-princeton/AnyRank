@@ -10,7 +10,7 @@
 #SBATCH --mem=25G
 #SBATCH --partition=all
 #SBATCH --signal=USR1@60
-#SBATCH --array=0-3
+#SBATCH --array=0-1
 
 source ~/.bashrc
 
@@ -24,7 +24,7 @@ EXPERIMENTS=(
 
 METHODS=(
     "graphical_active"
-    # "bonferroni"
+    "bonferroni"
     # "weighted_bonferroni"
     # "fixed"
 )

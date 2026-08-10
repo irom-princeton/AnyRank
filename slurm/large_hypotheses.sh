@@ -43,7 +43,7 @@ echo "Running experiment: ${EXP_NAME}"
 python scripts/tests/large_hypotheses.py \
     --subfolder "${SUBFOLDER}" \
     --alpha ${ALPHA} \
-    --n_policies 20 \
+    --n_policies 10 \
     --exp_name "${EXP_NAME}" \
     --graph_type "${GRAPH_TYPE}" \
     --methods "${METHOD}"
