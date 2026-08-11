@@ -3,6 +3,14 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import matplotlib as mpl
+
+mpl.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Palatino"],
+})
+
 
 # (rejections, sample complexity)
 lbm_data = {
@@ -24,26 +32,26 @@ lbm_data = {
 
 roboarena_data = {
     "RoboArena-4 (held-out)": {
-        "AnyRank": ("6/6", 1366),
-        r"AnyRank$_0$": ("6/6", 1380),
-        r"AnyRank$_\infty$": ("6/6", 1317),
-        "Bonferroni": ("6/6", 2599),
-        "Weighted\nBonferroni": ("6/6", 2912),
+        "AnyRank": ("6/6", 1275),
+        r"AnyRank$_0$": ("6/6", 1276),
+        r"AnyRank$_\infty$": ("6/6", 1251),
+        "Bonferroni": ("6/6", 2487),
+        "Weighted\nBonferroni": ("5/6", 2720),
     },
-    "RoboArena-7 (held-out)": {
-        r"AnyRank$_0$": ("12/21", 6929),
-        "Bonferroni": ("12/21", 6950),
-    },
-    "RoboArena-4 (WM)": {
-        "AnyRank": ("6/6", 2445),
-        r"AnyRank$_0$": ("6/6", 1380),
-        r"AnyRank$_\infty$": ("6/6", 1317),
-        "Bonferroni": ("6/6", 2599),
-    },
-    "RoboArena-7 (WM)": {
-        r"AnyRank$_0$": ("12/21", 6929),
-        "Bonferroni": ("12/21", 6950),
-    },
+    # "RoboArena-7 (held-out)": {
+    #     r"AnyRank$_0$": ("12/21", 6929),
+    #     "Bonferroni": ("12/21", 6950),
+    # },
+    # "RoboArena-4 (WM)": {
+    #     "AnyRank": ("6/6", 2445),
+    #     r"AnyRank$_0$": ("6/6", 1380),
+    #     r"AnyRank$_\infty$": ("6/6", 1317),
+    #     "Bonferroni": ("6/6", 2599),
+    # },
+    # "RoboArena-7 (WM)": {
+    #     r"AnyRank$_0$": ("12/21", 6929),
+    #     "Bonferroni": ("12/21", 6950),
+    # },
 }
 
 colors = {
@@ -103,7 +111,7 @@ def plot(data, name, save_dir="imglib/comparisons"):
     n_methods = len(present_methods)
     width = 0.16
 
-    fig, ax = plt.subplots(figsize=(12, 4))
+    fig, ax = plt.subplots(figsize=(5, 4))
 
     labeled = set()
     for j, setting in enumerate(experiments):
@@ -163,7 +171,94 @@ def plot(data, name, save_dir="imglib/comparisons"):
     print(f"Saved plot to {save_dir}/sample_complexity_{name}.png")
     plt.show()
 
+def plot_all(data, name, save_dir="imglib/comparisons"):
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Keep ALL methods; don't filter based on fraction rejected
+    plot_data = data
+
+    # Methods present in at least one setting, in canonical order
+    present_methods = [
+        m for m in METHOD_ORDER
+        if any(m in vals for vals in plot_data.values())
+    ]
+
+    experiments = list(plot_data.keys())
+    x = np.arange(len(experiments))
+    n_methods = len(present_methods)
+    width = 0.16
+
+    fig, ax = plt.subplots(figsize=(5, 5))
+
+    labeled = set()
+
+    for j, setting in enumerate(experiments):
+        local_methods = [
+            m for m in present_methods
+            if m in plot_data[setting]
+        ]
+
+        n_local = len(local_methods)
+
+        for k, method in enumerate(local_methods):
+            offset = (k - (n_local - 1) / 2) * width
+
+            # Keep both fraction rejected and sample complexity
+            rej, val = plot_data[setting][method]
+
+            label = method if method not in labeled else "_nolegend_"
+            labeled.add(method)
+
+            ax.bar(
+                x[j] + offset,
+                val,
+                width,
+                label=label,
+                color=colors[method],
+                alpha=color_alpha[method],
+                edgecolor="black",
+                linewidth=0.5,
+            )
+
+            # Annotate fraction rejected above bar
+            ax.annotate(
+                f"{val}\n({rej})",
+                xy=(x[j] + offset, val),
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+
+    ax.set_ylabel("Evaluations")
+    ax.set_xlabel("Experiment")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(experiments)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    ax.legend(
+        frameon=False,
+        ncol=3,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.22),
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+        f"{save_dir}/sample_complexity_{name}.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
+
+    print(f"Saved plot to {save_dir}/sample_complexity_{name}.png")
+    plt.show()
 
 if __name__ == "__main__":
-    plot(lbm_data, "lbm")
-    plot(roboarena_data, "roboarena")
+    # plot(lbm_data, "lbm")
+    plot_all(roboarena_data, "roboarena")

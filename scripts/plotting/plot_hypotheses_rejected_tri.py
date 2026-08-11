@@ -3,7 +3,10 @@
 ####
 
 from multitest.plot_cld import make_violin_plots_from_ttds, get_cld_letters_from_ttds
-import lbm_individual_test as lbm_mod
+import sys
+sys.path.insert(0, "/n/fs/irom-testing/multitest")
+
+import scripts.lbm_individual_test as lbm_mod
 import os
 import pickle
 import matplotlib.pyplot as plt
@@ -36,11 +39,11 @@ from multitest.individual_test import (
 # }
 
 METHOD_COLORS = {
-    "AnyRank":                 "#f35b04",
-    r"AnyRank$_0$":            "#f18701",
-    r"AnyRank$_\infty$":       "#ffaa00",
-    "Bonferroni":              "#023047",
-    "Weighted\nBonferroni":    "#5fa8d3",
+    "AnyRank":                 "#00A6FF",
+    r"AnyRank$_0$":            "#dc267f",
+    r"AnyRank$_\infty$":       "#785ef0",
+    "Bonferroni":              "#ff7f0e",
+    "Weighted\nBonferroni":    "#d62728",
 }
 
 METHOD_ALPHA = {
@@ -417,7 +420,8 @@ def plot_sample_complexity_multi(
     point_size: float =120,
     figsize: tuple[float, float] = (4, 4),
     title: str | None = None,
-    plot_type="efficiency"
+    plot_type="efficiency",
+    save_dir: str = "imglib/comparisons",
 ) -> plt.Axes:
     """
     Overlay multiple methods on one scatter plot.
@@ -527,10 +531,18 @@ def plot_sample_complexity_multi(
     if title:
         ax.set_title(title, fontsize=14)
     
-    if plot_type=="complexity":
-        ax.legend(frameon=True, fontsize=10, loc="upper left")
-    else:
-        ax.legend(frameon=True, fontsize=10, loc="lower left")
+    # if plot_type=="complexity":
+    #     ax.legend(frameon=True, fontsize=10, loc="upper left")
+    # else:
+    #     ax.legend(frameon=True, fontsize=10, loc="lower left")
+    handles, labels = ax.get_legend_handles_labels()
+
+    fig_leg = plt.figure(figsize=(6, 0.5))
+    fig_leg.legend(handles, labels, frameon=True, fontsize=10,
+                loc="center")
+    fig_leg.savefig(f"{save_dir}/legend.pdf", bbox_inches="tight", pad_inches=0.02)
+    plt.close(fig_leg)
+
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.2f}"))
     ax.tick_params(labelsize=10)
@@ -558,7 +570,7 @@ if __name__ == "__main__":
     # per-method RoboArena folders.
     meta_results_dir = "/n/fs/irom-testing/multitest/corl_sub"
     meta_results_dir="/n/fs/irom-testing/multitest/lbm_outputs_new"
-    lbm_results_subdir = "lbm_fully_connected_active_transitive"
+    lbm_results_subdir = "lbm_fully_connected_active_transitive_2026-07-30_alpha_0.1"
 
     method_names = [
         "AnyRank",
@@ -574,7 +586,7 @@ if __name__ == "__main__":
         "Bonferroni":             "bonferroni",
         "Weighted\nBonferroni":   "weighted_bonferroni",
     }
-    plot_type = "efficiency"
+    plot_type = "complexity"
 
     # Plot in reversed order so that AnyRank sits on top in the legend / z-order.
     METHOD_ORDER = [
@@ -619,17 +631,22 @@ if __name__ == "__main__":
 
         methods = {k: methods[k] for k in METHOD_ORDER}
 
+        sub = "sample_efficiency" if plot_type == "efficiency" else "sample_complexity"
+        save_dir = os.path.join("imglib", "lbm", exp_name, sub)
+        os.makedirs(save_dir, exist_ok=True)
+        print(f"Plotting {exp_name} to {save_dir} ...")
         ax = plot_sample_complexity_multi(
             methods=methods,
             policy_names=policies,
             max_sample_size_per_model=max_sample_size_per_model,
             title=EXP_NAMES[exp_name],
             plot_type=plot_type,
+            save_dir=save_dir
         )
 
-        sub = "sample_efficiency" if plot_type == "efficiency" else "sample_complexity"
-        save_dir = os.path.join("imglib", "lbm", exp_name, sub)
-        os.makedirs(save_dir, exist_ok=True)
+        # sub = "sample_efficiency" if plot_type == "efficiency" else "sample_complexity"
+        # save_dir = os.path.join("imglib", "lbm", exp_name, sub)
+        # os.makedirs(save_dir, exist_ok=True)
         out_path = os.path.join(save_dir, "sample_complexity.png")
         plt.savefig(out_path, dpi=600, bbox_inches="tight")
         plt.close(ax.figure)

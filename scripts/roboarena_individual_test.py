@@ -255,7 +255,7 @@ if __name__ == '__main__':
         for beta in beta_range:
             seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=seven_policies,cfg=seven_cfg)
-            main(cap_samples, policies, sim_means, real_means, bernoulli, cfg=seven_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=seven_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
 
     if exp_name == "roboarena4_bradley_terry_max":
         Nmax_total = 1200
@@ -285,8 +285,8 @@ if __name__ == '__main__':
         for beta in beta_range:
             WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
-            main(cap_samples, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
-            
+            main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
+
     if exp_name == "roboarena4_wm_prior_reshuffle":
         nruns = 50
         results_dir = results_dir(exp_name)
