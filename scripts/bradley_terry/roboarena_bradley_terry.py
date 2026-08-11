@@ -454,7 +454,6 @@ def roboarena_ranking_naive(metric="preference", subselect_and_remap=True, selec
     pref_data, progress_data, _, policy_names, policy_progress, preference_counts, old_to_new, new_to_old, policy_indices = \
         load_roboarena_data(selected_policies if subselect_and_remap else None, Nmax=Nmax)
     data = pref_data if metric == "preference" else progress_data
-
     if len(data) == 0:
         return []
 
@@ -539,8 +538,9 @@ if __name__ == "__main__":
 
     bt_method = args.method
     # Nmax = 492/490
-    Nmax = 1275
-
+    # Nmax = 1275
+    Nmax = None  # Use all data
+    
     if args.exp_name == "roboarena4":
         selected_policies = four_policies
     elif args.exp_name == "roboarena7":

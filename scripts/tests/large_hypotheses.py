@@ -151,7 +151,7 @@ if __name__ == '__main__':
     # Synthetic-experiment knobs (used only when --exp_name synthetic)
     parser.add_argument("--n_policies", type=int, default=10, help="Number of synthetic policies")
     parser.add_argument("--n_sim", type=int, default=100, help="Samples for the synthetic sim prior")
-    parser.add_argument("--n_real", type=int, default=5000, help="Samples for the synthetic real evals")
+    parser.add_argument("--n_real", type=int, default=500, help="Samples for the synthetic real evals")
     parser.add_argument("--std", type=float, default=0.15, help="Std of the synthetic Gaussian scores")
     parser.add_argument("--seed", type=int, default=0, help="RNG seed for synthetic data")
     args = parser.parse_args()
@@ -177,6 +177,13 @@ if __name__ == '__main__':
         "pi0_droid":                      r"$\pi_0$",
         "pi0_fast_droid":                 r"$\pi_0$-Fast",
         "pi05_droid":                     r"$\pi_{0.5}$",
+        "dam":                            "DAM",
+        "dreaming_zebra":                 "Dream-Zero",
+        "floppy_bagel_90k_temp1p0":        "FB-90k_temp1p0",
+        "floppy_bagel_285k_temp1p0":       "FB-285k_temp1p0",
+        "floppy_bagel_195k_temp1p0":       "FB-195k_temp1p0"
+        "floppy_bagel_420k":       "FB-420k",
+        "floppy_bagel_525k_temp1p0":      "FB-525k_temp1p0",
     }
     
 
@@ -218,7 +225,7 @@ if __name__ == '__main__':
     if exp_name == "synthetic":
         for beta in beta_range:
             # n_prior=0: the sim prior is generated separately (not split from real evals).
-            syn_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            syn_cfg = ExperimentConfig(n_prior=0, alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
             policy_data, policies, sim_means, real_means, bernoulli = synthetic_experiment(
                 n_policies=args.n_policies, n_sim=args.n_sim, n_real=args.n_real,
                 std=args.std, seed=args.seed, cfg=syn_cfg)
@@ -226,11 +233,11 @@ if __name__ == '__main__':
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=syn_cfg, labels=syn_labels, methods=methods, allow_transitive=args.transitive)
 
     if exp_name == "synthetic_reshuffle":
-        nruns = 10
+        nruns = 1
         result_dir = results_dir(exp_name + f"_npol_{args.n_policies}_nsim_{args.n_sim}_nreal_{args.n_real}")
         for beta in beta_range:
             for run in range(nruns):
-                syn_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=os.path.join(result_dir, f"run_{run}"), graph_type=args.graph_type)
+                syn_cfg = ExperimentConfig(n_prior=0, alpha=alpha, beta=beta, results_dir=os.path.join(result_dir, f"run_{run}"), graph_type=args.graph_type)
                 policy_data, policies, sim_means, real_means, bernoulli = synthetic_experiment(
                     n_policies=args.n_policies, n_sim=args.n_sim, n_real=args.n_real,
                     std=args.std, seed=run, cfg=syn_cfg)

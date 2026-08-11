@@ -406,7 +406,7 @@ class SequentialGraphicalTest:
                 updated_hypotheses_correct[hyp] = values["direction"]
         return rejected_hypotheses, updated_decision_times, updated_hypotheses_correct
 
-    def fixed_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False, allow_transitive=True):
+    def fixed_multitest_with_early_termination(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False, allow_transitive=True, Nmax_total=None):
         '''
         Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
         Return the list of rejected hypotheses along with their decision times
@@ -414,62 +414,145 @@ class SequentialGraphicalTest:
         rejected_hypotheses = []
         decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         hypotheses_correct = {hypothesis_policy_indices: 0.0 for hypothesis_policy_indices in ordered_hypotheses_policy_indices} # 1 if we correctly rejected, -1 if we incorrectly rejected, 0 if not rejected
+        fixed_tests = dict()
+        policy_counts = {i: 0 for i in range(policy_data.shape[1])} # keep track of how many samples we have used for each policy so far
+        hypothesis_counts = {hypothesis_policy_indices: 0 for hypothesis_policy_indices in ordered_hypotheses_policy_indices} # keep track of how many samples we have used for each hypothesis so far
+        terminated = False
+
+        # Initialize hypothesis tests:
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-            p0_index, p1_index = hypothesis_policy_indices
-            data0 = policy_data[:, p0_index]
-            data1 = policy_data[:, p1_index]
-            valid = ~np.isnan(data0) & ~np.isnan(data1)
-            data0 = data0[valid]
-            data1 = data1[valid]
-            
-            if allow_transitive:
-                # skip if implied by previously rejected hypotheses via transitivity
-                hyp_correct_at_curr_step = {hyp: hypotheses_correct[hyp] for hyp in rejected_hypotheses}
-                closure = transitive_closure_relations(rejected_hypotheses, hyp_correct_at_curr_step, n_policies=policy_data.shape[1])
-
-                if hypothesis_policy_indices in closure["implied"]: 
-                    print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
-                    if hypothesis_policy_indices not in rejected_hypotheses:
-                        rejected_hypotheses.append(hypothesis_policy_indices)
-                        hypotheses_correct[hypothesis_policy_indices] = 1.0
-                        decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
-                    continue
-                elif (p1_index, p0_index) in closure["implied"]: 
-                    print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
-                    if hypothesis_policy_indices not in rejected_hypotheses:
-                        rejected_hypotheses.append(hypothesis_policy_indices)
-                        hypotheses_correct[hypothesis_policy_indices] = -1.0
-                        decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
-                    continue
-
             if not bernoulli:
                 bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, 1)
             else:
                 bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, 1)
-            
-            len_common = min(len(data0), len(data1))
-            data0 = data0[:len_common]
-            data1 = data1[:len_common]
+            fixed_tests[hypothesis_policy_indices] = bonferroni_step_test
 
-            result = self.run_test_on_data(bonferroni_step_test, data0, data1)
-            
-            if result.decision == Decision.AcceptAlternative:
-                rejected_hypotheses.append(hypothesis_policy_indices)
-                hypotheses_correct[hypothesis_policy_indices] = 1.0
-                if "Time" in result.info:
-                    decision_times[hypothesis_policy_indices] = result.info["Time"]
+        while sum(policy_counts.values()) < Nmax_total and not terminated:
+            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+                p0_index, p1_index = hypothesis_policy_indices
+                test = fixed_tests[hypothesis_policy_indices]
+                if allow_transitive:
+                    # skip if implied by previously rejected hypotheses via transitivity
+                    hyp_correct_at_curr_step = {hyp: hypotheses_correct[hyp] for hyp in rejected_hypotheses}
+                    closure = transitive_closure_relations(rejected_hypotheses, hyp_correct_at_curr_step, n_policies=policy_data.shape[1])
+
+                    if hypothesis_policy_indices in closure["implied"]: 
+                        print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
+                        if hypothesis_policy_indices not in rejected_hypotheses:
+                            rejected_hypotheses.append(hypothesis_policy_indices)
+                            hypotheses_correct[hypothesis_policy_indices] = 1.0
+                            decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
+                        continue
+                    elif (p1_index, p0_index) in closure["implied"]: 
+                        print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
+                        if hypothesis_policy_indices not in rejected_hypotheses:
+                            rejected_hypotheses.append(hypothesis_policy_indices)
+                            hypotheses_correct[hypothesis_policy_indices] = -1.0
+                            decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
+                        continue
+                
+                data0 = policy_data[:, p0_index]
+                data1 = policy_data[:, p1_index]
+                valid = ~np.isnan(data0) & ~np.isnan(data1)
+                data0 = data0[valid]
+                data1 = data1[valid]
+                len_common = min(len(data0), len(data1))
+                data0 = data0[:len_common]
+                data1 = data1[:len_common]  
+                result = self.run_test_on_data(test, data0, data1)
+                if result.decision == Decision.AcceptAlternative:
+                    rejected_hypotheses.append(hypothesis_policy_indices)
+                    hypotheses_correct[hypothesis_policy_indices] = 1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
+                    hypothesis_counts[hypothesis_policy_indices] = decision_times[hypothesis_policy_indices] # update the number of samples used for this hypothesis
+                    policy_counts[p0_index] = max(policy_counts[p0_index], decision_times[hypothesis_policy_indices]) # update the number of samples used for this policy
+                    policy_counts[p1_index] = max(policy_counts[p1_index], decision_times[hypothesis_policy_indices]) # update
+                elif result.decision == Decision.AcceptNull:
+                    rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
+                    hypotheses_correct[hypothesis_policy_indices] = -1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
+                    hypothesis_counts[hypothesis_policy_indices] = decision_times[hypothesis_policy_indices] # update the number of samples used for this hypothesis
+                    policy_counts[p0_index] = max(policy_counts[p0_index], decision_times[hypothesis_policy_indices]) # update the number of samples used for this policy
+                    policy_counts[p1_index] = max(policy_counts[p1_index], decision_times[hypothesis_policy_indices]) # update
                 else:
-                    decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
-            elif result.decision == Decision.AcceptNull:
-                rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
-                hypotheses_correct[hypothesis_policy_indices] = -1.0
-                if "Time" in result.info:
-                    decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    decision_times[hypothesis_policy_indices] = Nmax
+                    terminated = True
+                    break
+        return rejected_hypotheses, decision_times, hypotheses_correct   
+
+    def fixed_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False, allow_transitive=True, Nmax_total=None):
+        '''
+        Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
+        Return the list of rejected hypotheses along with their decision times
+        '''
+        if Nmax_total is not None:
+            rejected_hypotheses, decision_times, hypotheses_correct = self.fixed_multitest_with_early_termination(ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, Nmax_total=Nmax_total, bernoulli=bernoulli, allow_transitive=allow_transitive)
+        else:
+            rejected_hypotheses = []
+            decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
+            hypotheses_correct = {hypothesis_policy_indices: 0.0 for hypothesis_policy_indices in ordered_hypotheses_policy_indices} # 1 if we correctly rejected, -1 if we incorrectly rejected, 0 if not rejected
+            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+                p0_index, p1_index = hypothesis_policy_indices
+                data0 = policy_data[:, p0_index]
+                data1 = policy_data[:, p1_index]
+                valid = ~np.isnan(data0) & ~np.isnan(data1)
+                data0 = data0[valid]
+                data1 = data1[valid]
+                
+                if allow_transitive:
+                    # skip if implied by previously rejected hypotheses via transitivity
+                    hyp_correct_at_curr_step = {hyp: hypotheses_correct[hyp] for hyp in rejected_hypotheses}
+                    closure = transitive_closure_relations(rejected_hypotheses, hyp_correct_at_curr_step, n_policies=policy_data.shape[1])
+
+                    if hypothesis_policy_indices in closure["implied"]: 
+                        print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
+                        if hypothesis_policy_indices not in rejected_hypotheses:
+                            rejected_hypotheses.append(hypothesis_policy_indices)
+                            hypotheses_correct[hypothesis_policy_indices] = 1.0
+                            decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
+                        continue
+                    elif (p1_index, p0_index) in closure["implied"]: 
+                        print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
+                        if hypothesis_policy_indices not in rejected_hypotheses:
+                            rejected_hypotheses.append(hypothesis_policy_indices)
+                            hypotheses_correct[hypothesis_policy_indices] = -1.0
+                            decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
+                        continue
+
+                if not bernoulli:
+                    bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, 1)
                 else:
-                    decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
-            else:
-                decision_times[hypothesis_policy_indices] = Nmax
-                break
+                    bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, 1)
+                
+                len_common = min(len(data0), len(data1))
+                data0 = data0[:len_common]
+                data1 = data1[:len_common]
+
+                result = self.run_test_on_data(bonferroni_step_test, data0, data1)
+                
+                if result.decision == Decision.AcceptAlternative:
+                    rejected_hypotheses.append(hypothesis_policy_indices)
+                    hypotheses_correct[hypothesis_policy_indices] = 1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
+                elif result.decision == Decision.AcceptNull:
+                    rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
+                    hypotheses_correct[hypothesis_policy_indices] = -1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
+                else:
+                    decision_times[hypothesis_policy_indices] = Nmax
+                    break
         
         # Note that we break after the first non-rejection to mimic a fixed-sequence testing procedure, where we only move on to the next hypothesis if we rejected the previous one. This is different from the weighted_bonferroni_multitest where we will test all hypotheses regardless of rejections, but just with different alpha levels.
         if allow_transitive:
@@ -489,50 +572,53 @@ class SequentialGraphicalTest:
                     hypotheses_correct[new_hyp] = updated_hypotheses_correct[new_hyp]
         return rejected_hypotheses, decision_times, hypotheses_correct
 
-    def bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False, allow_transitive=True):
+    def bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False, allow_transitive=True, Nmax_total=None):
         '''
         Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
         Return the list of rejected hypotheses along with their decision times
         '''
-        rejected_hypotheses = []
-        decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
-        num_hypotheses = len(ordered_hypotheses_policy_indices)
-        hypotheses_correct = {hypothesis: 0.0 for hypothesis in ordered_hypotheses_policy_indices} # 1 if we correctly rejected, -1 if we incorrectly rejected, 0 if not rejected
-        for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-            p0_index, p1_index = hypothesis_policy_indices
-            data0 = policy_data[:, p0_index]
-            data1 = policy_data[:, p1_index]
-            valid = ~np.isnan(data0) & ~np.isnan(data1)
-            data0 = data0[valid]
-            data1 = data1[valid]
-            
-            if not bernoulli:
-                bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, num_hypotheses)
-            else:
-                bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, num_hypotheses)
-            
-            len_common = min(len(data0), len(data1))
-            data0 = data0[:len_common]
-            data1 = data1[:len_common]
+        if Nmax_total is not None:
+            rejected_hypotheses, decision_times, hypotheses_correct = self.bonferroni_multitest_with_total_Nmax(ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli, allow_transitive, Nmax_total)
+        else:
+            rejected_hypotheses = []
+            decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
+            num_hypotheses = len(ordered_hypotheses_policy_indices)
+            hypotheses_correct = {hypothesis: 0.0 for hypothesis in ordered_hypotheses_policy_indices} # 1 if we correctly rejected, -1 if we incorrectly rejected, 0 if not rejected
+            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+                p0_index, p1_index = hypothesis_policy_indices
+                data0 = policy_data[:, p0_index]
+                data1 = policy_data[:, p1_index]
+                valid = ~np.isnan(data0) & ~np.isnan(data1)
+                data0 = data0[valid]
+                data1 = data1[valid]
+                
+                if not bernoulli:
+                    bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, num_hypotheses)
+                else:
+                    bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, num_hypotheses)
+                
+                len_common = min(len(data0), len(data1))
+                data0 = data0[:len_common]
+                data1 = data1[:len_common]
 
-            result = self.run_test_on_data(bonferroni_step_test, data0, data1)
-            
-            if result.decision == Decision.AcceptAlternative:
-                rejected_hypotheses.append(hypothesis_policy_indices)
-                hypotheses_correct[hypothesis_policy_indices] = 1.0
-                if "Time" in result.info:
-                    decision_times[hypothesis_policy_indices] = result.info["Time"]
+                result = self.run_test_on_data(bonferroni_step_test, data0, data1)
+                
+                if result.decision == Decision.AcceptAlternative:
+                    rejected_hypotheses.append(hypothesis_policy_indices)
+                    hypotheses_correct[hypothesis_policy_indices] = 1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
+                elif result.decision == Decision.AcceptNull:
+                    rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
+                    hypotheses_correct[hypothesis_policy_indices] = -1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
                 else:
-                    decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
-            elif result.decision == Decision.AcceptNull:
-                rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
-                hypotheses_correct[hypothesis_policy_indices] = -1.0
-                if "Time" in result.info:
-                    decision_times[hypothesis_policy_indices] = result.info["Time"]
-                else:
-                    decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
-            else:
-                decision_times[hypothesis_policy_indices] = "N/A"
+                    decision_times[hypothesis_policy_indices] = "N/A"
 
         if allow_transitive:
             rejected_decision_times = {hyp: decision_times[hyp] for hyp in rejected_hypotheses}
@@ -551,49 +637,200 @@ class SequentialGraphicalTest:
                     hypotheses_correct[new_hyp] = updated_hypotheses_correct[new_hyp]
         return rejected_hypotheses, decision_times, hypotheses_correct
 
-    def weighted_bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis, bernoulli=False, allow_transitive=True):
-        '''
-        Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
-        Return the list of rejected hypotheses along with their decision times
-        '''
+    def bonferroni_multitest_with_total_Nmax(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False, allow_transitive=True, Nmax_total=None):
+        """
+        Perform Bonferroni corrected multiple testing with a total sample size constraint.
+        """
         rejected_hypotheses = []
+        bonferroni_tests = dict()
         decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
-        hypotheses_correct = {hypothesis: 0.0 for hypothesis in ordered_hypotheses_policy_indices} # 1 if we correctly rejected, -1 if we incorrectly rejected, 0 if not rejected
+        hypotheses_correct = {hypothesis: 0.0 for hypothesis in ordered_hypotheses_policy_indices}  # 1 if we correctly rejected, -1 if we incorrectly rejected, 0 if not rejec
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-            alpha_i = alpha_per_hypothesis[i] 
-            p0_index, p1_index = hypothesis_policy_indices
-            data0 = policy_data[:, p0_index]
-            data1 = policy_data[:, p1_index]
-            valid = ~np.isnan(data0) & ~np.isnan(data1)
-            data0 = data0[valid]
-            data1 = data1[valid]
+            if not bernoulli:
+                bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, num_hypotheses)
+            else:
+                bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, num_hypotheses)
+            bonferroni_tests[hypothesis_policy_indices] = bonferroni_step_test
+        
+        policy_counts = {i: 0 for i in range(policy_data.shape[1])}
+        hypothesis_counts = {hypothesis: 0 for hypothesis in ordered_hypotheses_policy_indices}
+
+        while sum(policy_counts.values()) < Nmax_total:
+            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+                if hypothesis_policy_indices in rejected_hypotheses:
+                    continue  # Skip already rejected hypotheses
+                p0_index, p1_index = hypothesis_policy_indices
+                test = bonferroni_tests[hypothesis_policy_indices]
+                
+                # Before collecting evals, run test on the data collected so far for this hypothesis
+                if hypothesis_counts[hypothesis_policy_indices] < min(policy_counts[p0_index], policy_counts[p1_index]):
+                    datum0 = policy_data[hypothesis_counts[hypothesis_policy_indices], p0_index]
+                    datum1 = policy_data[hypothesis_counts[hypothesis_policy_indices], p1_index]
+                    hypothesis_counts[hypothesis_policy_indices] += 1
+                else:
+                    if policy_counts[p0_index] == policy_counts[p1_index]:
+                        policy_counts[p0_index] += 1
+                        policy_counts[p1_index] += 1
+                        datum0 = policy_data[policy_counts[p0_index]-1, p0_index] # sample both policies
+                        datum1 = policy_data[policy_counts[p1_index]-1, p1_index] # sample both policies
+                        hypothesis_counts[hypothesis_policy_indices] += 1 
+
+                    elif policy_counts[p0_index] < policy_counts[p1_index]:
+                        policy_counts[p0_index] += 1
+                        datum0 = policy_data[policy_counts[p0_index]-1, p0_index]
+                        datum1 = policy_data[policy_counts[p0_index]-1, p1_index] # sample the other policy to keep them balanced
+                        hypothesis_counts[hypothesis_policy_indices] += 1
+                        assert hypothesis_counts[hypothesis_policy_indices] == policy_counts[p0_index], "Hypothesis counts should match the number of samples taken for the policies in the hypothesis."
+                        
+                    else:
+                        policy_counts[p1_index] += 1
+                        datum0 = policy_data[policy_counts[p1_index]-1, p0_index] # sample the other policy to keep them balanced
+                        datum1 = policy_data[policy_counts[p1_index]-1, p1_index]
+                        hypothesis_counts[hypothesis_policy_indices] += 1
+                        assert hypothesis_counts[hypothesis_policy_indices] == policy_counts[p1_index], "Hypothesis counts should match the number of samples taken for the policies in the hypothesis."
+                        
+                
+                result = test.step(datum0, datum1)
+                print(f"Policy counts: {policy_counts}, Result: {result.decision}, Info: {result.info}")
+
+                if result.decision == Decision.AcceptAlternative:
+                    rejected_hypotheses.append(hypothesis_policy_indices)
+                    hypotheses_correct[hypothesis_policy_indices] = 1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
+                elif result.decision == Decision.AcceptNull:
+                    rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
+                    hypotheses_correct[hypothesis_policy_indices] = -1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
+                else:
+                    decision_times[hypothesis_policy_indices] = "N/A"
+        return rejected_hypotheses, decision_times, hypotheses_correct
+
+    def weighted_bonferroni_multitest_with_total_Nmax(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis, bernoulli=False, allow_transitive=True, Nmax_total=None):
+        rejected_hypotheses = []
+        bonferroni_tests = dict()
+        decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
+        num_hypotheses = len(ordered_hypotheses_policy_indices)
+        hypotheses_correct = {hypothesis: 0.0 for hypothesis in ordered_hypotheses_policy_indices}  # 1 if we correctly rejected, -1 if we incorrectly rejected, 0 if not rejected
+        for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+            alpha_i = alpha_per_hypothesis[i]
             if not bernoulli:
                 bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha_i, num_hypotheses)
             else:
                 bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha_i, num_hypotheses)
-            
-            len_common = min(len(data0), len(data1))
-            data0 = data0[:len_common]
-            data1 = data1[:len_common]
+            bonferroni_tests[hypothesis_policy_indices] = bonferroni_step_test
 
-            result = self.run_test_on_data(bonferroni_step_test, data0, data1)
-            if result.decision == Decision.AcceptAlternative:
-                rejected_hypotheses.append(hypothesis_policy_indices)
-                hypotheses_correct[hypothesis_policy_indices] = 1.0
-                if "Time" in result.info:
-                    decision_times[hypothesis_policy_indices] = result.info["Time"]
+        policy_counts = {i: 0 for i in range(policy_data.shape[1])}
+        hypothesis_counts = {hypothesis: 0 for hypothesis in ordered_hypotheses_policy_indices}
+
+        while sum(policy_counts.values()) < Nmax_total:
+            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+                if hypothesis_policy_indices in rejected_hypotheses:
+                    continue  # Skip already rejected hypotheses
+
+                p0_index, p1_index = hypothesis_policy_indices
+                test = bonferroni_tests[hypothesis_policy_indices]
+
+                # Before collecting evals, run test on the data collected so far for this hypothesis
+                if hypothesis_counts[hypothesis_policy_indices] < min(policy_counts[p0_index], policy_counts[p1_index]):
+                    datum0 = policy_data[hypothesis_counts[hypothesis_policy_indices], p0_index]
+                    datum1 = policy_data[hypothesis_counts[hypothesis_policy_indices], p1_index]
+                    hypothesis_counts[hypothesis_policy_indices] += 1
                 else:
-                    decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
-            elif result.decision == Decision.AcceptNull:
-                rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
-                hypotheses_correct[hypothesis_policy_indices] = -1.0
-                if "Time" in result.info:
-                    decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    if policy_counts[p0_index] == policy_counts[p1_index]:
+                        policy_counts[p0_index] += 1
+                        policy_counts[p1_index] += 1
+                        datum0 = policy_data[policy_counts[p0_index]-1, p0_index] # sample both policies
+                        datum1 = policy_data[policy_counts[p1_index]-1, p1_index] # sample both policies
+                        hypothesis_counts[hypothesis_policy_indices] += 1 
+
+                    elif policy_counts[p0_index] < policy_counts[p1_index]:
+                        policy_counts[p0_index] += 1
+                        datum0 = policy_data[policy_counts[p0_index]-1, p0_index]
+                        datum1 = policy_data[policy_counts[p0_index]-1, p1_index] # sample the other policy to keep them balanced
+                        hypothesis_counts[hypothesis_policy_indices] += 1
+                        assert hypothesis_counts[hypothesis_policy_indices] == policy_counts[p0_index], "Hypothesis counts should match the number of samples taken for the policies in the hypothesis."
+                        
+                    else:
+                        policy_counts[p1_index] += 1
+                        datum0 = policy_data[policy_counts[p1_index]-1, p0_index] # sample the other policy to keep them balanced
+                        datum1 = policy_data[policy_counts[p1_index]-1, p1_index]
+                        hypothesis_counts[hypothesis_policy_indices] += 1
+                        assert hypothesis_counts[hypothesis_policy_indices] == policy_counts[p1_index], "Hypothesis counts should match the number of samples taken for the policies in the hypothesis."
+                        
+                result = test.step(datum0, datum1)
+                print(f"Policy counts: {policy_counts}, Result: {result.decision}, Info: {result.info}")
+
+                if result.decision == Decision.AcceptAlternative:
+                    rejected_hypotheses.append(hypothesis_policy_indices)
+                    hypotheses_correct[hypothesis_policy_indices] = 1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
+                elif result.decision == Decision.AcceptNull:
+                    rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
+                    hypotheses_correct[hypothesis_policy_indices] = -1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
                 else:
-                    decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
-            else:
-                decision_times[hypothesis_policy_indices] = "N/A"
+                    decision_times[hypothesis_policy_indices] = "N/A"
+        return rejected_hypotheses, decision_times, hypotheses_correct
+
+    def weighted_bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis, bernoulli=False, allow_transitive=True, Nmax_total=None):
+        '''
+        Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
+        Return the list of rejected hypotheses along with their decision times
+        '''
+        if Nmax_total is not None:
+            rejected_hypotheses, decision_times, hypotheses_correct = self.weighted_bonferroni_multitest_with_total_Nmax(ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis, bernoulli, allow_transitive, Nmax_total)
+        else:
+            rejected_hypotheses = []
+            decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
+            num_hypotheses = len(ordered_hypotheses_policy_indices)
+            hypotheses_correct = {hypothesis: 0.0 for hypothesis in ordered_hypotheses_policy_indices} # 1 if we correctly rejected, -1 if we incorrectly rejected, 0 if not rejected
+            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+                alpha_i = alpha_per_hypothesis[i] 
+                p0_index, p1_index = hypothesis_policy_indices
+                data0 = policy_data[:, p0_index]
+                data1 = policy_data[:, p1_index]
+                valid = ~np.isnan(data0) & ~np.isnan(data1)
+                data0 = data0[valid]
+                data1 = data1[valid]
+                if not bernoulli:
+                    bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha_i, num_hypotheses)
+                else:
+                    bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha_i, num_hypotheses)
+                
+                len_common = min(len(data0), len(data1))
+                data0 = data0[:len_common]
+                data1 = data1[:len_common]
+
+                result = self.run_test_on_data(bonferroni_step_test, data0, data1)
+                if result.decision == Decision.AcceptAlternative:
+                    rejected_hypotheses.append(hypothesis_policy_indices)
+                    hypotheses_correct[hypothesis_policy_indices] = 1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_alternative"].info["Time"]
+                elif result.decision == Decision.AcceptNull:
+                    rejected_hypotheses.append(hypothesis_policy_indices) # if we accept null, we can also infer the opposite direction
+                    hypotheses_correct[hypothesis_policy_indices] = -1.0
+                    if "Time" in result.info:
+                        decision_times[hypothesis_policy_indices] = result.info["Time"]
+                    else:
+                        decision_times[hypothesis_policy_indices] = result.info["result_for_null"].info["Time"]
+                else:
+                    decision_times[hypothesis_policy_indices] = "N/A"
         
         if allow_transitive:
             rejected_decision_times = {hyp: decision_times[hyp] for hyp in rejected_hypotheses}
@@ -610,7 +847,6 @@ class SequentialGraphicalTest:
                 elif updated_decision_times[new_hyp] < decision_times[new_hyp]:
                     decision_times[new_hyp] = updated_decision_times[new_hyp]
                     hypotheses_correct[new_hyp] = updated_hypotheses_correct[new_hyp]
-        
         return rejected_hypotheses, decision_times, hypotheses_correct
 
     def parse_nsm_test_result(self, test_result):

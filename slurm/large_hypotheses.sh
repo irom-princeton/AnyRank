@@ -19,7 +19,7 @@ conda activate policy_comp
 cd /n/fs/irom-testing/multitest
 
 EXPERIMENTS=(
-    "synthetic_reshuffle"
+    "all_policies_fixed_floppy"
 )
 
 METHODS=(
@@ -43,7 +43,7 @@ echo "Running experiment: ${EXP_NAME}"
 python scripts/tests/large_hypotheses.py \
     --subfolder "${SUBFOLDER}" \
     --alpha ${ALPHA} \
-    --n_policies 10 \
+    --n_policies 5 \
     --exp_name "${EXP_NAME}" \
     --graph_type "${GRAPH_TYPE}" \
     --methods "${METHOD}"

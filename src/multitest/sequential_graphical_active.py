@@ -111,7 +111,7 @@ class SequentialGraphicalTest:
         plt.tight_layout()
         return ax
 
-    def sequential_graphical_test(self, p_values:Sequence[float], prev_rejected:List[int], hypotheses_correct:dict, hypotheses:Tuple[(int, int)], num_policies:int, p_value_types: dict, verbose=False, allow_transitive=False) -> Tuple[Set[int], np.ndarray, np.ndarray]:
+    def sequential_graphical_test(self, p_values:Sequence[float], prev_rejected:List[int], hypotheses_correct:dict, hypotheses:Tuple[(int, int)], num_policies:int, p_value_types: dict, Nmax_total=None, verbose=False, allow_transitive=False) -> Tuple[Set[int], np.ndarray, np.ndarray]:
         """
         Parameters
         ----------
@@ -307,7 +307,7 @@ class SequentialGraphicalTest:
         result = test.run_on_sequence(data0, data1)
         return result
 
-    def fixed_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False):
+    def fixed_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, Nmax_total=None, bernoulli=False):
         '''
         Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
         Return the list of rejected hypotheses along with their decision times
@@ -322,7 +322,7 @@ class SequentialGraphicalTest:
             p0_index, p1_index = hypothesis_policy_indices
             data0 = policy_data[:, p0_index]
             data1 = policy_data[:, p1_index]
-            valid = ~np.isnan(data0) & ~np.isnan(data1)
+            assert ~np.isnan(data0) & ~np.isnan(data1)
             result = self.run_test_on_data(bonferroni_step_test, data0[valid], data1[valid])
             if result.decision == Decision.AcceptAlternative:
                 rejected_hypotheses.append(hypothesis_policy_indices)
@@ -333,14 +333,16 @@ class SequentialGraphicalTest:
         # Note that we break after the first non-rejection to mimic a fixed-sequence testing procedure, where we only move on to the next hypothesis if we rejected the previous one. This is different from the weighted_bonferroni_multitest where we will test all hypotheses regardless of rejections, but just with different alpha levels.
         return rejected_hypotheses, decision_times
 
-    def bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False):
+    def bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, Nmax_total=None, bernoulli=False):
         '''
         Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
         Return the list of rejected hypotheses along with their decision times
         '''
+        
         rejected_hypotheses = []
         decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
+
         for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
             if not bernoulli:
                 bonferroni_step_test = self.initialize_bonferroni_test_partial_progress(Nmax, alpha, num_hypotheses)
@@ -358,7 +360,7 @@ class SequentialGraphicalTest:
                 decision_times[hypothesis_policy_indices] = "N/A"
         return rejected_hypotheses, decision_times
 
-    def weighted_bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis, bernoulli=False):
+    def weighted_bonferroni_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis, Nmax_total=None, bernoulli=False):
         '''
         Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
         Return the list of rejected hypotheses along with their decision times
@@ -397,7 +399,7 @@ class SequentialGraphicalTest:
         return decision_str, time_of_decision
 
 
-    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False, bernoulli=False, allow_transitive=True, beta=1.0):
+    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False, bernoulli=False, allow_transitive=True, Nmax_total=None, beta=1.0):
         '''
         Similar to graphical_multitest but we will run the graphical test sequentially after each new p-value is computed and update the graph and alpha budgets accordingly.
         '''
@@ -449,7 +451,10 @@ class SequentialGraphicalTest:
         
         # Active sampling scheme
         iters = int(0)
-        Tmax = num_policies * Nmax + 1
+        if Nmax_total is None:
+            Tmax = num_policies * Nmax + 1
+        else:
+            Tmax = Nmax_total + 1
         hyp_completed_vs_time = np.zeros(Tmax+1)
         while np.min(hypotheses_completed) <= 0.5 and iters < Tmax:
             # Get all rejected indices

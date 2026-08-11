@@ -130,7 +130,6 @@ def _results_dir(subfolder, name):
 
 def run_graphical_carrot(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = carrot(wm, init_cond)
-    breakpoint()
     real_means_values = list(real_means.values())
     sim_means_values = list(sim_means.values())
     pearson_corr, p_value = stats.pearsonr(real_means_values, sim_means_values)
@@ -142,7 +141,6 @@ def run_graphical_carrot(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolde
 
 def run_graphical_towel(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = towel(wm, init_cond)
-    breakpoint()
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'towel_wm_{wm}_init_{init_cond}'), graph_type=graph_type)

@@ -3,8 +3,15 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 import numpy as np
+import matplotlib as mpl
+from matplotlib.patches import Patch
 
-plt.rcParams['font.family'] = 'DejaVu Sans Mono'
+
+mpl.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Palatino"],
+})
 
 output_folder = "/n/fs/irom-testing/multitest/imglib/ranking"  # Update this to your desired output path
 srs = {
@@ -48,6 +55,17 @@ towel_policy_colors = {
 }
 # Colors for each policy type
 
+plot_policy_names = {
+    "pi05": r"$\pi_{0.5}$",
+    "pi0": r"$\pi_{0}$",
+    "v2_30demo": "DP (30)",
+    "v2_half": "DP (half)",
+    "v2_miss2": "DP (miss2)",
+    "v0_tip": "DP (tip)",
+    "v0_miss_grasp": "DP (miss)",
+    "v0_30demo": "DP (30)",
+    "v0_10demo": "DP (10)",
+}
 
 wm_markers = {
     "base": "o",
@@ -107,8 +125,8 @@ def plot(srs, eval_types, policy_colors, exp_name, show_legend=True):
             ax.plot(x_fit, m * x_fit + b, linestyle="--", linewidth=4,
                     color=line_colors[eval_type], alpha=1)
 
-    ax.set_xlabel("Real SR", fontsize=label_fontsize)
-    ax.set_ylabel("WM SR", fontsize=label_fontsize)
+    ax.set_xlabel("Real Mean Progress", fontsize=label_fontsize)
+    ax.set_ylabel("WM Mean Progress", fontsize=label_fontsize)
     ax.set_xlim(-0.05, 1.05)
     ax.set_ylim(-0.05, 1.05)
     ax.set_xticks(np.arange(0, 1.01, 0.2))
@@ -116,9 +134,9 @@ def plot(srs, eval_types, policy_colors, exp_name, show_legend=True):
     ax.set_yticks(np.arange(0, 1.01, 0.2))
     ax.grid(True, color=grid_color, alpha=grid_alpha, linestyle='-', linewidth=0.5)
     if show_legend:
-        from matplotlib.patches import Patch
         color_handles = [
-            mpatches.Patch(facecolor=policy_colors[p], edgecolor='black', label=p)
+            mpatches.Patch(facecolor=policy_colors[p], edgecolor='black',
+                        label=plot_policy_names.get(p, p))
             for p in srs
         ]
 
@@ -132,13 +150,13 @@ def plot(srs, eval_types, policy_colors, exp_name, show_legend=True):
                     markeredgecolor='black',
                     linestyle='--',
                     linewidth=3,
-                    label=f"{et}: r = {corr_vals[et]:.2f}"
+                    label=f"{EVAL_TYPE_NAMES.get(et, et)}: $r = {corr_vals[et]:.2f}$"
                 )
                 for et in eval_types
             ]
             all_handles = (
-                [Patch(visible=False, label='— policy —')] + color_handles +
-                [Patch(visible=False, label='— eval type —')] + shape_handles
+                [Patch(visible=False, label=r'\textbf{policy}')] + color_handles +
+                (shape_handles if shape_handles else [])
             )
         else:
             et = eval_types[0]
@@ -151,12 +169,12 @@ def plot(srs, eval_types, policy_colors, exp_name, show_legend=True):
                     markeredgecolor='black',
                     linestyle='--',
                     linewidth=3,
-                    label=f"r = {corr_vals[et]:.2f}"
+                    label=f"$r = {corr_vals[et]:.2f}$"
                 )
             ] if et in corr_vals else []
             all_handles = (
-                [Patch(visible=False, label='— policy —')] + color_handles +
-                ([Patch(visible=False, label='— eval type —')] + shape_handles if shape_handles else [])
+                [Patch(visible=False, label=r'\textbf{policy}')] + color_handles +
+                (shape_handles if shape_handles else [])
             )
 
         # --- separate legend figure ---
@@ -178,6 +196,7 @@ def plot(srs, eval_types, policy_colors, exp_name, show_legend=True):
         plt.close(fig_legend)
 
     plt.savefig(f"{output_folder}/corr_{exp_name}.png", dpi=150, bbox_inches='tight')
+    print(f"Saved plot for {exp_name} to {output_folder}/corr_{exp_name}.png")
     plt.close()
 
 

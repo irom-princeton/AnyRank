@@ -10,7 +10,7 @@
 #SBATCH --mem=25G
 #SBATCH --partition=all
 #SBATCH --signal=USR1@60
-#SBATCH --array=0-1
+#SBATCH --array=0-3
 
 source ~/.bashrc
 
@@ -19,14 +19,14 @@ conda activate policy_comp
 cd /n/fs/irom-testing/multitest
 
 EXPERIMENTS=(
-    "roboarena4_wm_prior_perfect_reshuffle"
+    "roboarena4_wm_prior_bradley_terry_max"
 )
 
 METHODS=(
     "graphical_active"
     "bonferroni"
-    # "weighted_bonferroni"
-    # "fixed"
+    "weighted_bonferroni"
+    "fixed"
 )
 GRAPH_TYPE="fully_connected"
 

@@ -312,7 +312,7 @@ def _to_policy_matrix(policy_data: dict, policies: list, Nmax: int) -> np.ndarra
 
 def split_eval(eval_results, Nmax, nruns=10, perfect_sim=False):
     prior_evals = {k: np.array(v[:nruns]) for k, v in eval_results.items()}
-    additional_evals = {k: np.array(v[nruns:Nmax]) for k, v in eval_results.items()}
+    additional_evals = {k: np.array(v[nruns:]) for k, v in eval_results.items()}
     if perfect_sim:
         prior_evals = copy.deepcopy(eval_results)
         additional_evals = copy.deepcopy(eval_results)
@@ -329,8 +329,12 @@ def run_experiments(
     policy_data, Nmax, alpha_per_hypothesis,
     alpha_per_hypothesis_weighted_bonferroni, weighted_G,
     policy_index, real_sim_means, bernoulli=False,
-    cfg=None, labels=None, methods=None, allow_transitive=False,
+    cfg=None, labels=None, methods=None, allow_transitive=False, Nmax_total=None
 ):
+    """
+    Run the experiments for the given policies and hypotheses.
+    Nmax_total: Early termination of the experiment if the total number of samples across all policies exceeds this value.
+    """
     if cfg is None:
         cfg = ExperimentConfig()
     n_runs = cfg.n_runs
@@ -518,7 +522,7 @@ def run_experiments(
             )
             rejected_hypotheses_active, _, decision_times_active, _, _, graphs_over_time_active, _, hypotheses_correct_active, _ = (
                 agraphical_test.sequential_graphical_multitest(
-                    null_hypotheses_policy_indices, policy_data, Nmax,
+                    null_hypotheses_policy_indices, policy_data, Nmax, Nmax_total=Nmax_total,
                     alpha_per_hypothesis=alpha_per_hypothesis,
                     weighted_G=weighted_G, verbose=True, bernoulli=bernoulli,allow_transitive=allow_transitive,
                 )
@@ -548,7 +552,7 @@ def run_experiments(
                 total_alpha=alpha,
             )
             rejected_hypotheses_bonferroni, decision_times_bonferroni, hypotheses_correct_bonferroni = _graphical_test_for_bonferroni.bonferroni_multitest(
-                null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli,
+                null_hypotheses_policy_indices, policy_data, Nmax, alpha, Nmax_total=Nmax_total, bernoulli=bernoulli,
                 allow_transitive=allow_transitive,
             )
             _accumulate_samples(samples_bonferroni, run, decision_times_bonferroni, Nmax_policies, procedure="bonferroni")
@@ -577,7 +581,7 @@ def run_experiments(
             rejected_hypotheses_weighted_bonferroni, decision_times_weighted_bonferroni, hypotheses_correct_weighted_bonferroni = (
                 _graphical_test_for_wb.weighted_bonferroni_multitest(
                     null_hypotheses_policy_indices, policy_data, Nmax,
-                    alpha_per_hypothesis_weighted_bonferroni, bernoulli=bernoulli,
+                    alpha_per_hypothesis_weighted_bonferroni, Nmax_total=Nmax_total, bernoulli=bernoulli,
                     allow_transitive=allow_transitive,
                 )
             )
@@ -605,7 +609,7 @@ def run_experiments(
                 total_alpha=alpha,
             )
             rejected_hypotheses_fixed, decision_times_fixed, hypotheses_correct_fixed = _graphical_test_for_fixed.fixed_multitest(
-                null_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=bernoulli,
+                null_hypotheses_policy_indices, policy_data, Nmax, alpha, Nmax_total=Nmax_total, bernoulli=bernoulli,
                 allow_transitive=allow_transitive,
             )
             _accumulate_samples(samples_fixed, run, decision_times_fixed, Nmax_policies, procedure="fixed_sequence")
@@ -687,8 +691,8 @@ def run_experiments(
         "max_sample_size_per_model": max_sample_size_per_model,
     }
 
-    save_path = os.path.join(results_dir, "cld_violin_plot_data.pkl")
-
+    save_path = os.path.join(results_dir, "cld_violins", f"beta{beta}", "cld_violin_plot_data.pkl")
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     with open(save_path, "wb") as f:
         pkl.dump(plot_data, f)
 
@@ -1157,7 +1161,7 @@ def visualize_weighted_graph(weighted_G, ordered_null_hypotheses, save_path=None
         plt.show()
 
 
-def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None, labels=None, methods=None, allow_transitive=False):
+def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=False, cfg=None, labels=None, methods=None, allow_transitive=False, Nmax_total=None):
     """
     Main function to run experiments.
 
@@ -1248,5 +1252,5 @@ def main(policy_data, policies=None, sim_means=None, real_means=None, bernoulli=
         policy_matrix, Nmax, alpha_per_hypothesis,
         alpha_per_hypothesis_weighted_bonferroni, weighted_G,
         policy_index, real_sim_means, bernoulli,
-        cfg=cfg, labels=plot_labels, methods=methods, allow_transitive=allow_transitive,
+        cfg=cfg, labels=plot_labels, methods=methods, allow_transitive=allow_transitive, Nmax_total=Nmax_total
     )
