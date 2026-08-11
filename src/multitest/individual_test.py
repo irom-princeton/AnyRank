@@ -616,7 +616,10 @@ def run_experiments(
             
             for key, value in decision_times_fixed.items():
                 Nmax_hyp = min(Nmax_policies[key[0]], Nmax_policies[key[1]])
-                avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + (Nmax_hyp if value == "N/A" else value)
+                # if Nmax_total is not None:
+                #     avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + (0 if value == "N/A" else value) 
+                # else:
+                avg_ttd_fixed[key] = avg_ttd_fixed.get(key, 0) + (Nmax_hyp if value == "N/A" else value) 
             print("Rejected hypotheses (policy pairs): ", rejected_hypotheses_fixed)
             print("Decision times: ", decision_times_fixed, "\n")
             decision_times_per_run['fixed'].append(

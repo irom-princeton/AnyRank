@@ -427,39 +427,73 @@ class SequentialGraphicalTest:
                 bonferroni_step_test = self.initialize_bonferroni_test(Nmax, alpha, 1)
             fixed_tests[hypothesis_policy_indices] = bonferroni_step_test
 
-        while sum(policy_counts.values()) < Nmax_total and not terminated:
-            for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
-                p0_index, p1_index = hypothesis_policy_indices
-                test = fixed_tests[hypothesis_policy_indices]
-                if allow_transitive:
-                    # skip if implied by previously rejected hypotheses via transitivity
-                    hyp_correct_at_curr_step = {hyp: hypotheses_correct[hyp] for hyp in rejected_hypotheses}
-                    closure = transitive_closure_relations(rejected_hypotheses, hyp_correct_at_curr_step, n_policies=policy_data.shape[1])
+        for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
+            p0_index, p1_index = hypothesis_policy_indices
+            max_evals = min(policy_data[:, p0_index].shape[0], policy_data[:, p1_index].shape[0])
+            test = fixed_tests[hypothesis_policy_indices]
+            if allow_transitive:
+                # skip if implied by previously rejected hypotheses via transitivity
+                hyp_correct_at_curr_step = {hyp: hypotheses_correct[hyp] for hyp in rejected_hypotheses}
+                closure = transitive_closure_relations(rejected_hypotheses, hyp_correct_at_curr_step, n_policies=policy_data.shape[1])
 
-                    if hypothesis_policy_indices in closure["implied"]: 
-                        print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
-                        if hypothesis_policy_indices not in rejected_hypotheses:
-                            rejected_hypotheses.append(hypothesis_policy_indices)
-                            hypotheses_correct[hypothesis_policy_indices] = 1.0
-                            decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
-                        continue
-                    elif (p1_index, p0_index) in closure["implied"]: 
-                        print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
-                        if hypothesis_policy_indices not in rejected_hypotheses:
-                            rejected_hypotheses.append(hypothesis_policy_indices)
-                            hypotheses_correct[hypothesis_policy_indices] = -1.0
-                            decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
-                        continue
+                if hypothesis_policy_indices in closure["implied"]: 
+                    print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
+                    if hypothesis_policy_indices not in rejected_hypotheses:
+                        rejected_hypotheses.append(hypothesis_policy_indices)
+                        hypotheses_correct[hypothesis_policy_indices] = 1.0
+                        decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
+                    continue
+                elif (p1_index, p0_index) in closure["implied"]: 
+                    print("Skipping hypothesis ", hypothesis_policy_indices, " since it's implied by previously rejected hypotheses via transitivity")
+                    if hypothesis_policy_indices not in rejected_hypotheses:
+                        rejected_hypotheses.append(hypothesis_policy_indices)
+                        hypotheses_correct[hypothesis_policy_indices] = -1.0
+                        decision_times[hypothesis_policy_indices] = 0.0 # we can consider the decision time for this implied rejection to be 0 since we can infer it immediately based on the previously rejected hypotheses and the graph structure
+                    continue
+            print(f"Total policy counts so far: {policy_counts}")
+            
+            while hypothesis_policy_indices not in rejected_hypotheses:
+                if hypothesis_counts[hypothesis_policy_indices] < min(policy_counts[p0_index], policy_counts[p1_index]):
+                    datum0 = policy_data[hypothesis_counts[hypothesis_policy_indices], p0_index]
+                    datum1 = policy_data[hypothesis_counts[hypothesis_policy_indices], p1_index]
+                    hypothesis_counts[hypothesis_policy_indices] += 1
+                else:
+                    if policy_counts[p0_index] == policy_counts[p1_index]:
+                        policy_counts[p0_index] += 1
+                        policy_counts[p1_index] += 1
+                        if policy_counts[p0_index] > max_evals or policy_counts[p1_index] > max_evals:
+                            print(f"Reached maximum evaluations for hypothesis {hypothesis_policy_indices}. Terminating early.")
+                            terminated = True
+                            decision_times[hypothesis_policy_indices] = max_evals # update the number of samples used for this hypothesis
+                            break
+                        datum0 = policy_data[policy_counts[p0_index]-1, p0_index]
+                        datum1 = policy_data[policy_counts[p0_index]-1, p1_index]
+                    elif policy_counts[p0_index] < policy_counts[p1_index]:
+                        policy_counts[p0_index] += 1
+                        if policy_counts[p0_index] > max_evals:
+                            print(f"Reached maximum evaluations for hypothesis {hypothesis_policy_indices}. Terminating early.")
+                            terminated = True
+                            decision_times[hypothesis_policy_indices] = max_evals # update the number of samples used for this hypothesis
+                            break
+                        datum0 = policy_data[policy_counts[p0_index]-1, p0_index]
+                        datum1 = policy_data[policy_counts[p0_index]-1, p1_index]
+                    else:
+                        policy_counts[p1_index] += 1
+                        if policy_counts[p1_index] > max_evals:
+                            print(f"Reached maximum evaluations for hypothesis {hypothesis_policy_indices}. Terminating early.")
+                            terminated = True
+                            decision_times[hypothesis_policy_indices] = max_evals # update the number of samples used for this hypothesis
+                            break
+                        datum0 = policy_data[policy_counts[p1_index]-1, p0_index]
+                        datum1 = policy_data[policy_counts[p1_index]-1, p1_index]
+                    hypothesis_counts[hypothesis_policy_indices] += 1  
+
+                if sum(policy_counts.values()) > Nmax_total:
+                    decision_times[hypothesis_policy_indices] = hypothesis_counts[hypothesis_policy_indices]-1 # update the number of samples used for this hypothesis
+                    terminated = True
+                    break
                 
-                data0 = policy_data[:, p0_index]
-                data1 = policy_data[:, p1_index]
-                valid = ~np.isnan(data0) & ~np.isnan(data1)
-                data0 = data0[valid]
-                data1 = data1[valid]
-                len_common = min(len(data0), len(data1))
-                data0 = data0[:len_common]
-                data1 = data1[:len_common]  
-                result = self.run_test_on_data(test, data0, data1)
+                result = test.step(datum0, datum1)
                 if result.decision == Decision.AcceptAlternative:
                     rejected_hypotheses.append(hypothesis_policy_indices)
                     hypotheses_correct[hypothesis_policy_indices] = 1.0
@@ -480,10 +514,10 @@ class SequentialGraphicalTest:
                     hypothesis_counts[hypothesis_policy_indices] = decision_times[hypothesis_policy_indices] # update the number of samples used for this hypothesis
                     policy_counts[p0_index] = max(policy_counts[p0_index], decision_times[hypothesis_policy_indices]) # update the number of samples used for this policy
                     policy_counts[p1_index] = max(policy_counts[p1_index], decision_times[hypothesis_policy_indices]) # update
-                else:
-                    decision_times[hypothesis_policy_indices] = Nmax
-                    terminated = True
-                    break
+                
+            if terminated:
+                print("Early termination occurred.")
+                break
         return rejected_hypotheses, decision_times, hypotheses_correct   
 
     def fixed_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha, bernoulli=False, allow_transitive=True, Nmax_total=None):

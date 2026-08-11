@@ -36,25 +36,25 @@ from multitest.individual_test import (
 # }
 
 METHOD_COLORS = {
-    "AnyRank":                 "#f35b04",
-    r"AnyRank$_0$":            "#f18701",
-    r"AnyRank$_\infty$":       "#ffaa00",
-    "Bonferroni":              "#023047",
-    "Weighted\nBonferroni":    "#5fa8d3",
+    "AnyRank":                 "#00A6FF",
+    r"AnyRank$_0$":            "#dc267f",
+    r"AnyRank$_\infty$":       "#785ef0",
+    "Bonferroni":              "#ff7f0e",
+    "Weighted\nBonferroni":    "#d62728",
 }
 
 METHOD_ALPHA = {
-    "AnyRank":                       1,
-    r"AnyRank$_0$":                  0.8,
+    "AnyRank":                       1.0,
+    r"AnyRank$_0$":                  1.0,
     r"AnyRank$_\infty$":             0.7,
-    "Bonferroni":                    0.5,
-    "Weighted\nBonferroni":          0.5,
+    "Bonferroni":                    0.7,
+    "Weighted\nBonferroni":          0.7,
 }
 
 METHOD_MARKERS = {
     "AnyRank":                       "o",
-    r"AnyRank$_0$":                  "o",
-    r"AnyRank$_\infty$":             "o",
+    r"AnyRank$_0$":                  "*",
+    r"AnyRank$_\infty$":             "^",
     "Bonferroni":                    "s",
     "Weighted\nBonferroni":          "s",
 }
@@ -408,7 +408,8 @@ def plot_sample_complexity_multi(
     point_size: float =120,
     figsize: tuple[float, float] = (4, 4),
     title: str | None = None,
-    plot_type="efficiency"
+    plot_type="efficiency",
+    save_dir="imglib/comparisons",
 ) -> plt.Axes:
     """
     Overlay multiple methods on one scatter plot.
@@ -494,6 +495,7 @@ def plot_sample_complexity_multi(
                 point_size=point_size,
                 ax=ax,
             )
+            ax.set_xlabel("Sample Efficiency", fontsize=12)
         else:
             plot_sample_complexity(
                 results_path=path,
@@ -508,16 +510,22 @@ def plot_sample_complexity_multi(
                 ax=ax,
             )
     
-    ax.set_xlabel("Sample Efficiency", fontsize=12)
+            ax.set_xlabel("Sample Complexity", fontsize=12)
     ax.set_ylabel("Hypotheses Rejected", fontsize=12)
  
     if title:
         ax.set_title(title, fontsize=14)
     
     if plot_type=="complexity":
-        ax.legend(frameon=True, fontsize=10, loc="lower left")
+        ax.legend(frameon=True, fontsize=10, loc="best")
     else:
-        ax.legend(frameon=True, fontsize=10, loc="lower left")
+        ax.legend(frameon=True, fontsize=10, loc="best")
+
+    # handles, labels = ax.get_legend_handles_labels()
+    # fig_leg = plt.figure(figsize=(4, 0.5))
+    # fig_leg.legend(handles, labels, loc="center", frameon=False, fontsize=10)
+    # fig_leg.savefig(os.path.join(save_dir, "legend.png"), dpi=600, bbox_inches="tight")
+    # plt.close(fig_leg)
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.2f}"))
     ax.tick_params(labelsize=10)
@@ -539,6 +547,7 @@ def plot_sample_complexity_multi(
 if __name__ == "__main__":
     meta_results_dir = "/n/fs/irom-testing/multitest/roboarena_outputs_graphical_active"
     postfix = "alpha_0.05_2026-07-29"
+    postfix="alpha_0.1_2026-08-10"
     method_names= [
         "AnyRank",
         r"AnyRank$_0$",
@@ -599,16 +608,16 @@ if __name__ == "__main__":
         # Plot in reversed order so that AnyRank is on top of the other methods in the legend
         METHOD_ORDER = {
             "roboarena4_wm_prior": [
-                r"AnyRank$_\infty$",
                 r"AnyRank$_0$",
                 "AnyRank",
+                r"AnyRank$_\infty$",
                 "Bonferroni",
                 "Weighted\nBonferroni",
             ][::-1],
             "roboarena4": [
-                r"AnyRank$_\infty$",
                 r"AnyRank$_0$",
                 "AnyRank",
+                r"AnyRank$_\infty$",
                 "Bonferroni",
                 "Weighted\nBonferroni",
             ][::-1],

@@ -19,13 +19,13 @@ conda activate policy_comp
 cd /n/fs/irom-testing/multitest
 
 EXPERIMENTS=(
-    "roboarena7_bradley_terry_half"
+    "roboarena4_wm_prior_bradley_terry_max"
 )
 
 METHODS=(
-    "graphical_active"
-    "bonferroni"
-    "weighted_bonferroni"
+    # "graphical_active"
+    # "bonferroni"
+    # "weighted_bonferroni"
     "fixed"
 )
 GRAPH_TYPE="fully_connected"

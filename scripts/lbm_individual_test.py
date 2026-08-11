@@ -181,14 +181,14 @@ def run_graphical_experiment_A(alpha=0.1, beta=1, labels=None, subfolder=None, g
     corr = get_corr(real_means, sim_means)
     print(f"Correlation between real and sim means: {corr:.4f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_A'), graph_type=graph_type)
-    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def run_graphical_experiment_B(id=True, ood=False, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
     corr = get_corr(real_means, sim_means)
     print(f"Correlation between real and sim means: {corr:.4f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_B_id_{}_ood_{}'.format(id, ood)), graph_type=graph_type)
-    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, alpha=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
     policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
@@ -198,7 +198,7 @@ def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, alpha
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
     cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift)), graph_type=graph_type)
-    # main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
+    main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def get_corr(real_means, sim_means):
     keys = list(real_means.keys())

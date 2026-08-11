@@ -47,17 +47,17 @@ METHOD_COLORS = {
 }
 
 METHOD_ALPHA = {
-    "AnyRank":                       1,
-    r"AnyRank$_0$":                  0.8,
+    "AnyRank":                       1.0,
+    r"AnyRank$_0$":                  1.0,
     r"AnyRank$_\infty$":             0.7,
-    "Bonferroni":                    0.5,
-    "Weighted\nBonferroni":          0.5,
+    "Bonferroni":                    0.7,
+    "Weighted\nBonferroni":          0.7,
 }
 
 METHOD_MARKERS = {
     "AnyRank":                       "o",
-    r"AnyRank$_0$":                  "o",
-    r"AnyRank$_\infty$":             "o",
+    r"AnyRank$_0$":                  "*",
+    r"AnyRank$_\infty$":             "^",
     "Bonferroni":                    "s",
     "Weighted\nBonferroni":          "s",
 }
@@ -397,7 +397,7 @@ def plot_sample_complexity(
         max_samples_seen = max(max_samples_seen, n_samples)
         if hypotheses_correct.get(key, 0) != 0:
             cum_rejected += 1
-            xs.append(max_samples_seen)
+            xs.append(-1*max_samples_seen)
             ys.append(cum_rejected)
  
     if ax is None:
@@ -407,7 +407,7 @@ def plot_sample_complexity(
     max_rejected = int(np.max(ys)) if ys else 0 if ys else 0
     label = f"{label:<24} {max_rejected:2d}/{len(hypotheses_correct):2d}" if label else None
     ax.scatter(xs, ys, s=point_size, color=color, alpha=alpha, marker=marker, label=label, zorder=3, edgecolors="black", clip_on=False)
-    ax.set_xscale("log")
+    # ax.set_xscale("log")
     return ax
  
  
@@ -493,8 +493,6 @@ def plot_sample_complexity_multi(
  
         color = color_map.get(display_name, default_cycle[idx % len(default_cycle)])
         alpha = color_alpha.get(display_name, 0.8)  # add alpha for transparency
-
-        
         if plot_type == "efficiency":
             try:
                 plot_efficiency(
@@ -511,6 +509,7 @@ def plot_sample_complexity_multi(
                 )
             except:
                 st()
+            ax.set_xlabel("Sample Efficiency", fontsize=12)
         else:
             plot_sample_complexity(
                 results_path=path,
@@ -524,24 +523,23 @@ def plot_sample_complexity_multi(
                 point_size=point_size,
                 ax=ax,
             )
-    
-    ax.set_xlabel("Sample Efficiency", fontsize=12)
+            ax.set_xlabel("Sample Complexity", fontsize=12)
     ax.set_ylabel("Hypotheses Rejected", fontsize=12)
  
     if title:
         ax.set_title(title, fontsize=14)
     
-    # if plot_type=="complexity":
-    #     ax.legend(frameon=True, fontsize=10, loc="upper left")
-    # else:
-    #     ax.legend(frameon=True, fontsize=10, loc="lower left")
-    handles, labels = ax.get_legend_handles_labels()
+    if plot_type=="complexity":
+        ax.legend(frameon=True, fontsize=10, loc="best")
+    else:
+        ax.legend(frameon=True, fontsize=10, loc="best")
+    # handles, labels = ax.get_legend_handles_labels()
 
-    fig_leg = plt.figure(figsize=(6, 0.5))
-    fig_leg.legend(handles, labels, frameon=True, fontsize=10,
-                loc="center")
-    fig_leg.savefig(f"{save_dir}/legend.pdf", bbox_inches="tight", pad_inches=0.02)
-    plt.close(fig_leg)
+    # fig_leg = plt.figure(figsize=(6, 0.5))
+    # fig_leg.legend(handles, labels, frameon=True, fontsize=10,
+    #             loc="center")
+    # fig_leg.savefig(f"{save_dir}/legend.pdf", bbox_inches="tight", pad_inches=0.02)
+    # plt.close(fig_leg)
 
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.2f}"))
