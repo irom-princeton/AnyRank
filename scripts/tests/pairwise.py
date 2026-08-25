@@ -1,4 +1,4 @@
-from sequentialized_barnard_tests.nsm_graphical import MirroredContinuousNsmTest_AlphaAdaptive, ContinuousNsmTest
+from nscore.nonparametric_nsm import MirroredContinuousNsmTest, ContinuousNsmTest
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 import pandas as pd
 import numpy as np
@@ -29,7 +29,7 @@ def pairwise_tests_w_plot(policy_data, alpha, p0_index, p1_index, **kwargs):
 
     # test_for_alternative alternative is P0<P1
     # test_for_null alternative is P0>P1
-    mirrored_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
+    mirrored_nsm_test = MirroredContinuousNsmTest(
         alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10
     )
 
@@ -73,11 +73,12 @@ def pairwise_tests_w_plot(policy_data, alpha, p0_index, p1_index, **kwargs):
         p_value_alt_attr_mirrored = mirrored_nsm_test._test_for_alternative._p_value
         p_value_null_attr_mirrored = mirrored_nsm_test._test_for_null._p_value
 
-        # p_value_less corresponds to P0<P1 happens to be the test for alternative 
-        p_value_less_alt_mirrored = mirrored_nsm_test._test_for_alternative._p_value_less
-        p_value_more_alt_mirrored = mirrored_nsm_test._test_for_alternative._p_value_more
-        p_value_less_null_mirrored = mirrored_nsm_test._test_for_null._p_value_less
-        p_value_more_null_mirrored = mirrored_nsm_test._test_for_null._p_value_more
+        # p_value_less corresponds to P0<P1 (alternative child's _p_value)
+        # p_value_more corresponds to P0>P1 (null child's _p_value)
+        p_value_less_alt_mirrored = mirrored_nsm_test._test_for_alternative._p_value
+        p_value_more_alt_mirrored = mirrored_nsm_test._test_for_null._p_value
+        p_value_less_null_mirrored = mirrored_nsm_test._test_for_alternative._p_value
+        p_value_more_null_mirrored = mirrored_nsm_test._test_for_null._p_value
 
         p_values_alt_mirrored.append(p_value_alt_mirrored)
         p_values_null_mirrored.append(p_value_null_mirrored)

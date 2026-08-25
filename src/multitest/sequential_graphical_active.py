@@ -1,6 +1,5 @@
 from sequentialized_barnard_tests.base import Decision, Hypothesis
-from sequentialized_barnard_tests.nonparametric_nsm import MirroredContinuousNsmTest
-from sequentialized_barnard_tests.nsm_graphical import ContinuousNsmTest, MirroredContinuousNsmTest_AlphaAdaptive
+from nscore.nonparametric_nsm import ContinuousNsmTest, MirroredContinuousNsmTest
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from math import comb
 import numpy as np
@@ -281,7 +280,7 @@ class SequentialGraphicalTest:
         return rejected, graphs_over_time, alpha_at_rejected, updated_hypotheses_correct
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
-        nonparametric_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
+        nonparametric_nsm_test = MirroredContinuousNsmTest(
                 alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(2)
             )
         return nonparametric_nsm_test
@@ -294,7 +293,7 @@ class SequentialGraphicalTest:
         return bonferroni_step_test
     
     def initialize_graphical_nsm_test_partial_progress(self, Nmax, alpha):
-        nonparametric_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
+        nonparametric_nsm_test = MirroredContinuousNsmTest(
                 alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10
             )
         return nonparametric_nsm_test
@@ -618,7 +617,7 @@ class SequentialGraphicalTest:
                 for i in range(num_hypotheses):
                     if i not in rejected:
                         nsm_test = tests[i]
-                        nsm_test.set_alpha(self.alpha[i])
+                        nsm_test.alpha = self.alpha[i]
             hyp_completed_vs_time[iters+1:] +=  hyp_completed_vs_time[iters]
         return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct, hyp_completed_vs_time                   
                         
@@ -660,7 +659,7 @@ class SequentialGraphicalTest:
         #         for i in range(num_hypotheses):
         #             if i not in rejected:
         #                 nsm_test = tests[i]
-        #                 nsm_test.set_alpha(self.alpha[i])
+        #                 nsm_test.alpha = self.alpha[i]
         # return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected                
                         
         
