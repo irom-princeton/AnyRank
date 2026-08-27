@@ -189,7 +189,7 @@ class SequentialGraphicalTest:
                         h_store = hyp
                         direction=1.0
                         if p_value_types[idx] == "null":
-                            breakpoint()
+                            direction = -1.0
                     else:
                         h_store = (hyp[1], hyp[0])
                         idx = hypotheses.index(h_store)
@@ -265,7 +265,10 @@ class SequentialGraphicalTest:
                         new_G[k, j] = 0.0
 
                     if new_G[k, j] > 1.1 or new_G[k, j] < 0.0:
-                        breakpoint()
+                        raise ValueError(
+                            f"Graph update produced invalid edge weight "
+                            f"G[{k}, {j}]={new_G[k, j]:.6g}"
+                        )
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
 
@@ -322,7 +325,7 @@ class SequentialGraphicalTest:
             p0_index, p1_index = hypothesis_policy_indices
             data0 = policy_data[:, p0_index]
             data1 = policy_data[:, p1_index]
-            assert ~np.isnan(data0) & ~np.isnan(data1)
+            valid = ~np.isnan(data0) & ~np.isnan(data1)
             result = self.run_test_on_data(bonferroni_step_test, data0[valid], data1[valid])
             if result.decision == Decision.AcceptAlternative:
                 rejected_hypotheses.append(hypothesis_policy_indices)

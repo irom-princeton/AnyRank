@@ -187,7 +187,10 @@ class SequentialGraphicalTest:
                         new_G[k, j] = 0.0
 
                     if new_G[k, j] > 1.1 or new_G[k, j] < 0.0:
-                        breakpoint()
+                        raise ValueError(
+                            f"Graph update produced invalid edge weight "
+                            f"G[{k}, {j}]={new_G[k, j]:.6g}"
+                        )
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
         return rejected, graphs_over_time
@@ -307,7 +310,7 @@ class SequentialGraphicalTest:
         rejected_hypotheses = []
         decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
-        
+
         if alpha_per_hypothesis is not None:
             self.set_params(alpha=alpha_per_hypothesis)
         if weighted_G is not None:
@@ -377,6 +380,5 @@ class SequentialGraphicalTest:
                         nsm_test = tests[i]
                         nsm_test.set_alpha(self.alpha[i])
 
-        # If some are not rejected:          
+        # If some are not rejected:
         return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, hypotheses_correct
-        

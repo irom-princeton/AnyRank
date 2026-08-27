@@ -1,15 +1,36 @@
 from itertools import combinations
 
+
+def _compute_closure(edges):
+    closure = set(edges)
+
+    changed = True
+    while changed:
+        changed = False
+        new_edges = set()
+
+        for a, b in closure:
+            for c, d in closure:
+                if b == c and a != d and (a, d) not in closure:
+                    new_edges.add((a, d))
+
+        if new_edges:
+            closure |= new_edges
+            changed = True
+
+    return closure
+
+
 def transitive_closure_relations(hypotheses, decisions, n_policies=None):
     """
     Compute transitive closure of pairwise decisions.
 
     Parameters
     ----------
-    hypotheses : list[str]
-        e.g. ["0,1", "1,2", "0,2"]
+    hypotheses : list[tuple[int, int]]
+        e.g. [(0, 1), (1, 2), (0, 2)]
 
-    decisions : list[int]
+    decisions : dict[tuple[int, int], int]
         1  => A < B
         -1 => A > B
         0  => no decision
@@ -22,7 +43,7 @@ def transitive_closure_relations(hypotheses, decisions, n_policies=None):
     if n_policies is None:
         nodes = set()
         for h in hypotheses:
-            a, b = map(int, h.split(","))
+            a, b = h
             nodes.update([a, b])
         n_policies = max(nodes) + 1
 
@@ -35,40 +56,38 @@ def transitive_closure_relations(hypotheses, decisions, n_policies=None):
         elif d == -1:
             direct.add((b, a))      # b < a
 
-    closure = set(direct)
-
-    changed = True
-    while changed:
-        changed = False
-        new_edges = set()
-
-        for a, b in closure:
-            for c, d in closure:
-                if b == c and (a, d) not in closure:
-                    new_edges.add((a, d))
-
-        if new_edges:
-            closure |= new_edges
-            changed = True
-
-    implied = closure - direct
-
-    contradictions = []
-
-    for i, j in combinations(range(n_policies), 2):
-        if (i, j) in closure and (j, i) in closure:
-            contradictions.append((i, j))
+    closure = _compute_closure(direct)
 
     all_pairs = set(combinations(range(n_policies), 2))
+    contradictions = set()
+
+    for i, j in all_pairs:
+        if (i, j) in closure and (j, i) in closure:
+            contradictions.add((i, j))
+
+    safe_direct = set()
+    for a, b in direct:
+        canonical = (min(a, b), max(a, b))
+        if canonical not in contradictions:
+            safe_direct.add((a, b))
+
+    safe_closure = _compute_closure(safe_direct)
 
     resolved = set()
     unresolved = set()
 
     for i, j in all_pairs:
-        if (i, j) in closure or (j, i) in closure:
+        if (i, j) in contradictions:
+            unresolved.add((i, j))
+        elif (i, j) in safe_closure or (j, i) in safe_closure:
             resolved.add((i, j))
         else:
             unresolved.add((i, j))
+
+    implied = set()
+    for a, b in safe_closure - direct:
+        if a != b:
+            implied.add((a, b))
 
     return {
         "direct": direct,
@@ -197,7 +216,6 @@ if __name__ == "__main__":
 
     print("Implied relations:")
     print(closure["implied"])
-    breakpoint()
 
     times = {
         (0,1): 10,
@@ -243,5 +261,4 @@ if __name__ == "__main__":
     )
 
     print(timing)
-    breakpoint()
     print(timing)
