@@ -12,15 +12,6 @@ import pytest
 from multitest.sequential_graphical_active import SequentialGraphicalTest
 
 
-pytestmark = pytest.mark.xfail(
-    reason=(
-        "AnyRank alpha recycling requires an AnyRank-owned alpha-adaptive NSM "
-        "variant; nscore's base mirrored test now has immutable alpha."
-    ),
-    strict=True,
-)
-
-
 @pytest.fixture
 def graphical_test():
     """Create a small graphical test with three comparable policies."""

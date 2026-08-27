@@ -1,5 +1,6 @@
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from nscore.nonparametric_nsm import ContinuousNsmTest, MirroredContinuousNsmTest
+from multitest.alpha_adaptive_nsm import MirroredContinuousNsmTestAlphaAdaptive
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from math import comb
 import numpy as np
@@ -280,7 +281,7 @@ class SequentialGraphicalTest:
         return rejected, graphs_over_time, alpha_at_rejected, updated_hypotheses_correct
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
-        nonparametric_nsm_test = MirroredContinuousNsmTest(
+        nonparametric_nsm_test = MirroredContinuousNsmTestAlphaAdaptive(
                 alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(2)
             )
         return nonparametric_nsm_test
@@ -293,7 +294,7 @@ class SequentialGraphicalTest:
         return bonferroni_step_test
     
     def initialize_graphical_nsm_test_partial_progress(self, Nmax, alpha):
-        nonparametric_nsm_test = MirroredContinuousNsmTest(
+        nonparametric_nsm_test = MirroredContinuousNsmTestAlphaAdaptive(
                 alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10
             )
         return nonparametric_nsm_test
@@ -662,4 +663,3 @@ class SequentialGraphicalTest:
         #                 nsm_test.alpha = self.alpha[i]
         # return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected                
                         
-        
