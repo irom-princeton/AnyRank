@@ -181,7 +181,7 @@ if __name__ == '__main__':
         "dreaming_zebra":                 "Dream-Zero",
         "floppy_bagel_90k_temp1p0":        "FB-90k_temp1p0",
         "floppy_bagel_285k_temp1p0":       "FB-285k_temp1p0",
-        "floppy_bagel_195k_temp1p0":       "FB-195k_temp1p0"
+        "floppy_bagel_195k_temp1p0":       "FB-195k_temp1p0",
         "floppy_bagel_420k":       "FB-420k",
         "floppy_bagel_525k_temp1p0":      "FB-525k_temp1p0",
     }

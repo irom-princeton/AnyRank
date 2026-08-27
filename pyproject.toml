@@ -9,15 +9,31 @@ description = "Multiple hypothesis testing for policy evaluation"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "matplotlib",
+  "networkx",
   "numpy",
   "nscore>=0.1.0,<0.2",
   "statistical-comparison-core>=0.2.0,<0.3",
   "sequentialized-barnard-tests",
-  # add others you actually import at runtime, e.g.:
-  # "scipy",
-  # "pandas",
-  # "tqdm",
 ]
+
+[project.optional-dependencies]
+scripts = [
+  "pandas",
+  "pillow",
+  "scipy",
+  "tqdm",
+]
+dev = [
+  "pytest",
+  "pandas",
+  "pillow",
+  "scipy",
+  "tqdm",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
