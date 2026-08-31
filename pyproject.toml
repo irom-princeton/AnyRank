@@ -14,7 +14,7 @@ dependencies = [
   "numpy",
   "nscore>=0.1.0,<0.2",
   "statistical-comparison-core>=0.2.0,<0.3",
-  "sequentialized-barnard-tests",
+  "sequentialized-barnard-tests>=0.0.6",
 ]
 
 [project.optional-dependencies]
