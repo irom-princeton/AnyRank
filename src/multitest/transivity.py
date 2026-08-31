@@ -21,6 +21,34 @@ def _compute_closure(edges):
     return closure
 
 
+def _safe_closure_inputs(decisions, n_policies):
+    direct = set()
+
+    for (a, b), d in decisions.items():
+        if d == 1:
+            direct.add((a, b))      # a < b
+
+        elif d == -1:
+            direct.add((b, a))      # b < a
+
+    closure = _compute_closure(direct)
+
+    all_pairs = set(combinations(range(n_policies), 2))
+    contradictions = set()
+
+    for i, j in all_pairs:
+        if (i, j) in closure and (j, i) in closure:
+            contradictions.add((i, j))
+
+    safe_direct = set()
+    for a, b in direct:
+        canonical = (min(a, b), max(a, b))
+        if canonical not in contradictions:
+            safe_direct.add((a, b))
+
+    return direct, closure, safe_direct, contradictions, all_pairs
+
+
 def transitive_closure_relations(hypotheses, decisions, n_policies=None):
     """
     Compute transitive closure of pairwise decisions.
@@ -47,29 +75,9 @@ def transitive_closure_relations(hypotheses, decisions, n_policies=None):
             nodes.update([a, b])
         n_policies = max(nodes) + 1
 
-    direct = set()
-
-    for (a, b), d in decisions.items():
-        if d == 1:
-            direct.add((a, b))      # a < b
-
-        elif d == -1:
-            direct.add((b, a))      # b < a
-
-    closure = _compute_closure(direct)
-
-    all_pairs = set(combinations(range(n_policies), 2))
-    contradictions = set()
-
-    for i, j in all_pairs:
-        if (i, j) in closure and (j, i) in closure:
-            contradictions.add((i, j))
-
-    safe_direct = set()
-    for a, b in direct:
-        canonical = (min(a, b), max(a, b))
-        if canonical not in contradictions:
-            safe_direct.add((a, b))
+    direct, closure, safe_direct, contradictions, all_pairs = (
+        _safe_closure_inputs(decisions, n_policies)
+    )
 
     safe_closure = _compute_closure(safe_direct)
 
@@ -105,11 +113,11 @@ def transitive_decision_times(hypothesis_times, decisions, n_policies):
 
     Parameters
     ----------
-    hypothesis_times : dict
-        {"0,1": 10, "1,2": 20, ...}
+    hypothesis_times : dict[tuple[int, int], int]
+        {(0, 1): 10, (1, 2): 20, ...}
 
-    decisions : dict
-        {"0,1": 1, "1,2": 1, ...}
+    decisions : dict[tuple[int, int], int]
+        {(0, 1): 1, (1, 2): 1, ...}
 
     Returns
     -------
@@ -123,25 +131,37 @@ def transitive_decision_times(hypothesis_times, decisions, n_policies):
 
     INF = float("inf")
 
-    dist = [[INF] * n_policies for _ in range(n_policies)]
+    _, _, safe_direct, contradictions, _ = (
+        _safe_closure_inputs(decisions, n_policies)
+    )
 
     direct_times = {}
+    edge_times = {}
 
-    for h, d in decisions.items():
-
+    for (a, b), d in decisions.items():
         if d == 0:
             continue
 
-        a, b = h
-        t = hypothesis_times[h]
+        t = hypothesis_times[(a, b)]
+        canonical = (min(a, b), max(a, b))
+        direct_times[canonical] = min(t, direct_times.get(canonical, INF))
 
         if d == 1:
-            dist[a][b] = t
-            direct_times[(a, b)] = t
+            edge = (a, b)
 
         elif d == -1:
-            dist[b][a] = t
-            direct_times[(b, a)] = t
+            edge = (b, a)
+
+        else:
+            continue
+
+        if canonical not in contradictions:
+            edge_times[edge] = min(t, edge_times.get(edge, INF))
+
+    dist = [[INF] * n_policies for _ in range(n_policies)]
+
+    for a, b in safe_direct:
+        dist[a][b] = edge_times[(a, b)]
 
     #
     # Floyd-Warshall transitive timing
@@ -162,7 +182,7 @@ def transitive_decision_times(hypothesis_times, decisions, n_policies):
 
     for i, j in combinations(range(n_policies), 2):
 
-        direct_time = hypothesis_times.get(f"{i},{j}", None)
+        direct_time = direct_times.get((i, j), None)
 
         if dist[i][j] < INF:
 

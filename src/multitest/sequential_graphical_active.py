@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 import copy
-from multitest.transivity import transitive_closure_relations, transitive_decision_times
+from multitest.transivity import transitive_closure_relations
 import os
 
 class SequentialGraphicalTest:
