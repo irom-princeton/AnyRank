@@ -244,7 +244,10 @@ class SequentialGraphicalTest:
                         new_G[k, j] = 0.0
 
                     if new_G[k, j] > 1.1 or new_G[k, j] < 0.0:
-                        breakpoint()
+                        raise ValueError(
+                            f"Graph update produced invalid edge weight "
+                            f"G[{k}, {j}]={new_G[k, j]:.6g}"
+                        )
             self.alpha = copy.deepcopy(new_alpha)
             self.G = copy.deepcopy(new_G)
         return rejected, graphs_over_time, alpha_at_rejected, updated_hypotheses_correct
