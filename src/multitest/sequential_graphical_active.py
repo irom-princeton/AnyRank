@@ -32,6 +32,10 @@ class SequentialGraphicalTest:
         # Off by default: per-step animation frames are huge, never-closed
         # figures that leak memory and OOM for large hypothesis counts.
         self.enable_animation = False
+        # Off by default for library use: martingale plots can create many
+        # caller-CWD-relative files during batch runs.
+        self.enable_martingale_plots = False
+        self.martingale_plot_dir = "imglib"
         self.check_params()
 
     def set_params(self, G: Optional = None, alpha:Optional = None, total_alpha:Optional = None):
@@ -227,7 +231,7 @@ class SequentialGraphicalTest:
             # hypotheses_correct[hypotheses[i]] = 1.0 if p_value_types[i] == "alternative"
             # updated_hypotheses_correct[hypotheses[i]] = 1.0 if p_value_types[i] == "alternative"
 
-            alpha_at_rejected.append(copy.deepcopy(self.alpha[i]))
+            alpha_at_rejected.append((hypotheses[i], copy.deepcopy(self.alpha[i])))
             active = [j for j in range(self.num_hypotheses) if j not in rejected]
 
             if verbose:
@@ -581,15 +585,21 @@ class SequentialGraphicalTest:
                 print(f"At policy complexity {policy_counts}, p-values: {p_values}, alpha: {self.alpha}, candidates for rejection: {candidates}")
 
             if len(candidates) > 0:
-                # Plot martingale history
-                for i in candidates:
-                    os.makedirs(f"imglib/alpha_{self.total_alpha}", exist_ok=True)
-                    fix, ax = plt.subplots()
-                    ax.set_ylabel("Martingale Value")
-                    ax.set_xlabel("Time")
-                    ax.plot(martingales_history[i], label=f"H{i}, alpha={self.alpha[i]:.4f}, p-value={p_values[i]:.4f}")
-                    ax.legend()
-                    plt.savefig(f"imglib/alpha_{self.total_alpha}/martingale_history_H{i}.png")
+                # Plot martingale history only when explicitly requested.
+                if self.enable_martingale_plots:
+                    plot_dir = os.path.join(
+                        self.martingale_plot_dir,
+                        f"alpha_{self.total_alpha}",
+                    )
+                    os.makedirs(plot_dir, exist_ok=True)
+                    for i in candidates:
+                        fig, ax = plt.subplots()
+                        ax.set_ylabel("Martingale Value")
+                        ax.set_xlabel("Time")
+                        ax.plot(martingales_history[i], label=f"H{i}, alpha={self.alpha[i]:.4f}, p-value={p_values[i]:.4f}")
+                        ax.legend()
+                        plt.savefig(os.path.join(plot_dir, f"martingale_history_H{i}.png"))
+                        plt.close(fig)
 
                 rejected_at_k, graph_over_time, new_alpha_at_rejected, hypotheses_correct = self.sequential_graphical_test(p_values, rejected, hypotheses_correct, ordered_hypotheses_policy_indices, policy_data.shape[1], p_value_types, verbose=False, allow_transitive=allow_transitive)
                 graphs_over_time.extend(graph_over_time)
@@ -614,7 +624,9 @@ class SequentialGraphicalTest:
                         if k not in rejected_hypotheses:
                             print(f"Hypothesis {k} with correctness {v} and decision time {decision_times[k]}")
 
-                # Reset alpha for remaining hypotheses to initial alpha (or alpha_per_hypothesis if provided) after each update:
+                # Re-sync remaining tests to the recycled graphical alpha. This
+                # keeps the individual NSM decision boundary aligned with the
+                # graphical p-value candidate check above.
                 for i in range(num_hypotheses):
                     if i not in rejected:
                         nsm_test = tests[i]

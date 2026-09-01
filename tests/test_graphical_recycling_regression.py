@@ -94,3 +94,59 @@ class TestStatePreservationUnderRecycling:
         assert len(nsm_test._test_for_null._store_lambda_params) == null_lambda_len
         assert nsm_test._p_value == wrapper_pv
         assert nsm_test._p_type == wrapper_pt
+
+
+class TestGraphicalCleanupBehavior:
+    """Regression coverage for integration cleanup behavior."""
+
+    def test_alpha_at_rejected_is_keyed_by_hypothesis(self, graphical_test):
+        sgt = graphical_test
+        hypotheses = [(0, 1), (0, 2), (1, 2)]
+        hypotheses_correct = {hyp: 0.0 for hyp in hypotheses}
+        p_values = np.zeros(len(hypotheses))
+        p_value_types = ["alternative"] * len(hypotheses)
+
+        _rejected, _graphs, alpha_at_rejected, _updated = (
+            sgt.sequential_graphical_test(
+                p_values,
+                [],
+                hypotheses_correct,
+                hypotheses,
+                num_policies=3,
+                p_value_types=p_value_types,
+                allow_transitive=False,
+            )
+        )
+
+        assert alpha_at_rejected
+        for hypothesis, alpha in alpha_at_rejected:
+            assert hypothesis in hypotheses
+            assert alpha > 0.0
+
+    def test_batch_run_does_not_write_martingale_plots_by_default(
+        self, tmp_path, monkeypatch,
+    ):
+        sgt = SequentialGraphicalTest(
+            num_policies=2,
+            null_hypotheses=[(0.5, 0.5)],
+            total_alpha=0.05,
+        )
+        assert sgt.enable_martingale_plots is False
+
+        policy_data = np.column_stack([
+            np.ones(20),
+            np.zeros(20),
+        ])
+        monkeypatch.chdir(tmp_path)
+
+        sgt.sequential_graphical_multitest(
+            ordered_hypotheses_policy_indices=[(0, 1)],
+            policy_data=policy_data,
+            Nmax=20,
+            alpha_per_hypothesis=sgt.alpha.copy(),
+            bernoulli=True,
+            allow_transitive=False,
+            verbose=False,
+        )
+
+        assert not (tmp_path / "imglib").exists()
