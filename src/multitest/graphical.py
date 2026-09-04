@@ -1,8 +1,7 @@
 import numpy as np
 from sequentialized_barnard_tests import StepTest
 from sequentialized_barnard_tests.base import Decision, Hypothesis
-from sequentialized_barnard_tests.nonparametric_nsm import MirroredContinuousNsmTest
-from sequentialized_barnard_tests.nsm_graphical import MirroredContinuousNsmTest_AlphaAdaptive
+from nscore.nonparametric_nsm import MirroredContinuousNsmTest
 from typing import Iterable, List, Optional, Sequence, Set, Tuple
 from math import comb
 import numpy as np

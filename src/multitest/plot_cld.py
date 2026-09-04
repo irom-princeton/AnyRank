@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Optional
+from typing import Dict, List, Optional, Union
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import get_cmap
@@ -9,9 +9,9 @@ from matplotlib.patches import Patch
 from matplotlib.ticker import MaxNLocator
 from tqdm import tqdm
 
-from sequentialized_barnard_tests.tools.plotting import (
+from statistical_comparison_helpers import (
     compact_letter_display,
-    plot_model_comparison
+    draw_samples_from_beta_posterior,
 )
 
 K_progress = 40
@@ -236,3 +236,266 @@ def make_violin_plots_from_ttds(
             mode=mode,
         )
         print(f"  [{method}] violin saved to {plot_path}")
+
+def cld_rank(label):
+    """Mean letter index: 'a'->0, 'ab'->0.5, 'b'->1, 'c'->2, 'd'->3."""
+    idx = [ord(c) - ord("a") for c in label.lower()]
+    return sum(idx) / len(idx)
+
+def plot_model_comparison(
+    model_name_list: List[str],
+    labels: Optional[List[str]],
+    result_arrays: List[np.ndarray],
+    cld_letters: List[str],
+    rng: np.random.Generator,
+    mode: str = "success_rate",  # "success_rate" or "task_progress"
+    progress_bins: Optional[np.ndarray] = None,
+    output_path: Optional[str] = None,
+    title: Optional[str] = None,
+    add_legend: bool = False,
+    unit_width: int = 5,
+    height: int = 5,
+    dpi: int = 360,
+    ttd: Optional[Dict[str, int]] = None,
+    CLD_COLOR: Optional[Dict[str, str]] = None,
+) -> Union[None, plt.Figure]:
+    """Makes a violin plot of success rate estimates with corresponding CLD letters
+    for policy comparison.
+
+    Args:
+        model_name_list: A list of model names.
+        result_arrays: A list of arrays indicating success/failure or progress for each model.
+        cld_letters: A list of CLD letters corresponding to each model.
+        rng: A numpy random Generator instance for posterior sampling.
+        mode: Mode of the result arrays. "success_rate" for binary success/failure
+            arrays, "task_progress" for progress arrays. Defaults to "success_rate".
+        progress_bins: If mode is "task_progress", the unique progress bins. Defaults to None.
+        output_path: Optional file path to save the plot. If None, the plot will not
+            be saved but returned as a matplotlib Figure object. Defaults to None.
+        title: Optional title for the plot. Defaults to None.
+        add_legend: Whether to show legend on the plot. Defaults to False.
+        unit_width: Figure width per model. Defaults to 6.
+        height: Figure height. Defaults to 4.
+        dpi: Resolution of the saved plot. Defaults to 100.
+        ttd: Optional time-to-decision value to display on the plot. Defaults to None.
+        imglib: Optional image library to use for saving the plot. Defaults to None.
+
+    Returns:
+        If output_path is None, returns a matplotlib Figure object containing
+        the plot. Otherwise, saves the plot to the specified path and returns None.
+    """
+    if not mode in ["success_rate", "task_progress"]:
+        raise ValueError(f"mode must be 'success_rate' or 'task_progress', got {mode}")
+    if mode == "success_rate":
+        if not progress_bins is None:
+            raise ValueError(
+                "progress_bins should be None when mode is 'success_rate'."
+            )
+        if any(
+            not np.all(np.isin(result_array, [True, False]))
+            for result_array in result_arrays
+        ):
+            raise ValueError(
+                "All result arrays must be binary arrays of True/False "
+                "when mode is 'success_rate'."
+            )
+    if mode == "task_progress":
+        if progress_bins is None:
+            raise ValueError(
+                "progress_bins must be provided when mode is 'task_progress'."
+            )
+        if any(
+            not np.all(np.isin(result_array, progress_bins))
+            for result_array in result_arrays
+        ):
+            raise ValueError(
+                "All result arrays must contain only values in progress_bins "
+                "when mode is 'task_progress'."
+            )
+    num_models = len(model_name_list)
+
+    posterior_samples = []
+    means = []
+
+    for result_array in result_arrays:
+        if mode == "success_rate":
+            samples = draw_samples_from_beta_posterior(result_array, rng)
+        elif mode == "task_progress":
+            # samples = draw_samples_from_dirichlet_posterior(
+            #     result_array, progress_bins, rng
+            # )
+            samples = result_array  # Use the raw progress values for plotting instead of sampling from the posterior. Consistent with the LBM 1.0 paper.
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+        posterior_samples.append(samples)
+        means.append(np.mean(samples))
+
+    fig, ax = plt.subplots(figsize=(max(unit_width, num_models), height), dpi=dpi)
+    ax.tick_params(axis="y", labelsize=16)
+    ax.tick_params(axis="x", labelsize=16)
+
+    def cld_sort_key(s: str):
+        # Standard CLD convention: 'a' is best.
+        # Sort by first letter, then by length (so 'a' before 'ab' before 'b', etc.)
+        return (s[0], len(s), s)
+
+    groups = sorted(set(cld_letters), key=cld_sort_key)
+    num_groups = len(groups)
+
+    # Blues
+    cmap = get_cmap("Blues")
+    group_colors = [cmap(x) for x in np.linspace(0.9, 0.3, num_groups)]
+    letter_to_color = {g: c for g, c in zip(groups, group_colors)}
+    colors = [letter_to_color[cld] for cld in cld_letters]
+
+    # Tab10:
+    cmap = get_cmap("tab10")
+    # Use first K tab10 colors (stable, categorical)
+    group_colors = [cmap(i) for i in range(num_groups)]
+    # Map CLD → color
+    letter_to_color = dict(zip(groups, group_colors))
+    # Final per-model colors (ties share color)
+    colors = [letter_to_color[cld] for cld in cld_letters]
+
+    parts = ax.violinplot(
+        posterior_samples,
+        positions=np.arange(num_models),
+        showmeans=True,
+        showmedians=False,
+        showextrema=False,
+        widths=0.8,
+    )
+    # for pc, color in zip(parts["bodies"], colors):
+    #     pc.set_facecolor(color)
+    #     pc.set_alpha(0.6)
+    #     pc.set_edgecolor("black")
+    #     pc.set_linewidth(1.2)
+    # parts["cmeans"].set_color("black")
+    # parts["cmeans"].set_linewidth(0.8)
+    # if CLD_COLOR is None:
+    #     CLD_COLOR = {
+    #         "a": "#0076BA",  # dark blue (best)
+    #         "b": "#7AACD2",  # medium blue
+    #         "c": "#DFEAF6",  # light blue
+    #         "d": "#D88281",  # red (worst)
+    #         "ab": "#3D91C6",  # medium blue
+    #         "bc": "#DFEAF6",
+    #         "e": "#D88281",  # red (worst)
+    #         "f": "#D88281",  # red (worst)
+    #         "g": "#D88281",  # red (worst)
+    #         "h": "#D88281",  # red (worst)
+    #         "i": "#D88281",  # red (worst)
+    #         "j": "#D88281",  # red (worst)
+    #     }
+    #     # get combination if cld letter not in script:
+    #     # e.g. "ac" → mix of "a" and "c"
+    #     letters = "abcdefghijklmnopqrstuvwxyz"
+    #     for cld in set(cld_letters):
+    #         if cld not in CLD_COLOR:
+    #             base_colors = [CLD_COLOR[c] for c in cld if c in CLD_COLOR]
+    #             if base_colors:
+    #                 # Average the RGB values of the base colors
+    #                 avg_color = np.mean(
+    #                     [plt.colors.to_rgb(c) for c in base_colors], axis=0
+    #                 )
+    #                 CLD_COLOR[cld] = avg_color
+    #             else:
+    #                 # Default to gray if no known letters
+    #                 CLD_COLOR[cld] = (0.5, 0.5, 0.5)
+
+    letters = sorted({c for cld in cld_letters for c in cld})
+    n = len(letters)
+    cmap = plt.get_cmap("RdYlBu_r")
+    LO, HI = 0.15, 0.9
+    ranks = {L: cld_rank(L) for L in letters}
+    vmax = max(ranks.values()) or 1
+    # tab10
+    # letter_colors = {letter: cmap(i % 10) for i, letter in enumerate(letters)}
+
+    CLD_COLOR = {
+        cld: cmap(LO + (HI - LO) * (cld_rank(cld) / vmax)) for cld in set(cld_letters)
+    }
+
+    # # letter_colors = {L: cmap(i / max(n - 1, 1)) for i, L in enumerate(sorted(letters))}
+    # CLD_COLOR = {}
+
+    # for cld in set(cld_letters):
+    #     rgbs = [mcolors.to_rgb(letter_colors[c]) for c in cld]
+
+    #     CLD_COLOR[cld] = np.mean(rgbs, axis=0)
+
+    for pc, cld in zip(parts["bodies"], cld_letters):
+        pc.set_facecolor(CLD_COLOR[cld])
+        pc.set_alpha(1.0)
+        pc.set_edgecolor("black")
+        pc.set_linewidth(1.2)
+    parts["cmeans"].set_color("black")
+    parts["cmeans"].set_linewidth(0.8)
+
+    # Add CLD labels
+
+    for i, (x, y, label) in enumerate(zip(np.arange(num_models), means, cld_letters)):
+        if y < 0.03:
+            ypos = 0.05  # Ensure label is above the x-axis
+        elif y > 0.97:
+            ypos = 0.95  # Ensure label is below the top of the plot
+        else:
+            ypos = y + 0.03  # Slightly above the mean
+        ax.text(
+            x - 0.025,
+            ypos,
+            label,
+            fontsize=16,
+            fontweight="bold",
+            color="black",
+            verticalalignment="center",
+            zorder=4,
+        )
+
+    ax.set_xticks(np.arange(num_models))
+    if labels:
+        ax.set_xticklabels(labels, ha="center", rotation=30, fontsize=15)
+    else:
+        ax.set_xticklabels(
+            [model.upper() for model in model_name_list], rotation=30, ha="center"
+        )
+    # --- top x-axis (TTD) ---
+    if ttd is not None:
+        ax_top = ax.secondary_xaxis("top")
+        ax_top.set_xticks(np.arange(num_models))
+
+        ttd_labels = []
+        for model in model_name_list:
+            v = ttd.get(model, None)
+            ttd_labels.append(rf"${v:.0f}$" if v is not None else "")
+
+        ax_top.set_xticklabels(ttd_labels, fontsize=15)
+        ax_top.set_xlabel(
+            "Time to decision", fontsize=16, labelpad=10, fontweight="bold"
+        )
+
+        # styling
+        ax_top.tick_params(axis="x", length=0, pad=6)
+        ax_top.spines["top"].set_visible(False)
+
+    ax.set_ylim(0.0, 1.0)
+    if mode == "success_rate":
+        ax.set_ylabel("Success Rate", fontsize=18)
+    elif mode == "task_progress":
+        ax.set_ylabel("Task Progress", fontsize=18)
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+    if title is not None:
+        ax.set_title(title)
+    if add_legend:
+        ax.legend(
+            parts["bodies"], [model.upper() for model in model_name_list], loc="best"
+        )
+    plt.tight_layout()
+
+    if output_path is not None:
+        plt.savefig(output_path, dpi=300)
+        plt.close()
+        print(f"Saved a PNG plot to {output_path}")
+    else:
+        return fig

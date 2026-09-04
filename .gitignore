@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Experiments
+imglib/
+lbm_outputs_new/
+roboarena_outputs_graphical_active/

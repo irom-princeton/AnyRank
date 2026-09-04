@@ -4,9 +4,8 @@
 import os
 import copy
 from sequentialized_barnard_tests.base import Decision, Hypothesis
-from sequentialized_barnard_tests.nonparametric_nsm import MirroredContinuousNsmTest
+from nscore.nonparametric_nsm import ContinuousNsmTest, MirroredContinuousNsmTest
 from sequentialized_barnard_tests.step import MirroredStepTest
-from sequentialized_barnard_tests.nsm_graphical import ContinuousNsmTest, MirroredContinuousNsmTest_AlphaAdaptive
 import numpy as np
 from multitest.transivity import transitive_closure_relations, transitive_decision_times
 
@@ -20,7 +19,7 @@ class FixedSequenceTransitive:
         os.makedirs(self.save_dir, exist_ok=True)
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
-        nonparametric_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
+        nonparametric_nsm_test = MirroredContinuousNsmTest(
                 alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(2)
             )
         return nonparametric_nsm_test
@@ -32,7 +31,7 @@ class FixedSequenceTransitive:
         return bonferroni_step_test
     
     def initialize_graphical_nsm_test_partial_progress(self, Nmax, alpha):
-        nonparametric_nsm_test = MirroredContinuousNsmTest_AlphaAdaptive(
+        nonparametric_nsm_test = MirroredContinuousNsmTest(
                 alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10
             )
         return nonparametric_nsm_test

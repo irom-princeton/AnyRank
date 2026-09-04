@@ -7,7 +7,6 @@ import tempfile
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
 from multitest.sequential_graphical import SequentialGraphicalTest
-from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
 import pandas as pd
 import ast
 from multitest.individual_test import ExperimentConfig, main
@@ -270,4 +269,3 @@ if __name__ == "__main__":
 
         ## Experiment C: Out-of-distribution stations and nominal performance comparison
         run_graphical_experiment_C(id=True, ood=True, distshift="novel", beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID and OOD with novel station
-        

@@ -11,7 +11,6 @@ import tempfile
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
 from multitest.sequential_graphical import SequentialGraphicalTest
-from multitest.sequential_graphical_evalue import SequentialGraphicalTest as ESequentialGraphicalTest
 
 #############################################
 # Parameters
@@ -356,26 +355,6 @@ def main():
                 avg_ttd[key] = avg_ttd.get(key, 0) + value
             print("Rejected hypotheses (policy pairs): ", rejected_hypotheses)
             print("Decision times: ", decision_times, "\n")
-
-            # E-value graphical multitest
-            print("Running e-value graphical multitest...")
-            egraphical_test = ESequentialGraphicalTest(
-                num_policies=policy_data.shape[1],
-                null_hypotheses=null_hypotheses_policy_indices,
-                total_alpha=alpha,
-            )
-            _, _, decision_times_evalues, _, _, graphs_over_time_evalues = (
-                egraphical_test.sequential_graphical_multitest(
-                    null_hypotheses_policy_indices, policy_data, Nmax,
-                    alpha_per_hypothesis=alpha_per_hypothesis,
-                    weighted_G=weighted_G, verbose=True,
-                )
-            )
-            _accumulate_samples(samples_evalues, run, decision_times_evalues)
-            animate(graphs_over_time_evalues, results_dir, Nmax, n_runs)
-            for key, value in decision_times_evalues.items():
-                avg_ttd_evalues[key] = avg_ttd_evalues.get(key, 0) + value
-            print("Decision times: ", decision_times_evalues, "\n")
 
             # Bonferroni
             print("Running Bonferroni corrected individual tests for comparison...")
