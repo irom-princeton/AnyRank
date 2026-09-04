@@ -209,7 +209,7 @@ def get_corr(real_means, sim_means):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--subfolder", type=str, default=None, help="Optional subfolder under outputs/lbm_graphical_test/")
-    parser.add_argument("--alpha", type=float, default=0.05,
+    parser.add_argument("--alpha", type=float, default=0.1,
                             help="Significance level for multiple testing")
     parser.add_argument("--graph_type", type=str, default="fully_connected",
                         choices=["soft_masked", "fully_connected"],
