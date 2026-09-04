@@ -1,0 +1,281 @@
+task_id,wm_id,instruction,score
+init_0,paligemma_diffusion_droid,Close the open drawer,1.0000
+init_0,paligemma_fast_specialist_droid,Close the open drawer,0.5000
+init_0,pi0_fast_droid,Close the open drawer,0.7500
+init_0,paligemma_vq_droid,Close the open drawer,0.7500
+init_0,pi0_droid,Close the open drawer,0.5000
+init_0,paligemma_fast_droid,Close the open drawer,0.5000
+init_0,paligemma_binning_droid,Close the open drawer,0.2500
+init_1,paligemma_fast_droid,Press the last button to the right of the coffee maker,1.0000
+init_1,paligemma_vq_droid,Press the last button to the right of the coffee maker,1.0000
+init_1,pi0_fast_droid,Press the last button to the right of the coffee maker,0.5000
+init_1,paligemma_diffusion_droid,Press the last button to the right of the coffee maker,1.0000
+init_1,pi0_droid,Press the last button to the right of the coffee maker,0.5000
+init_1,paligemma_fast_specialist_droid,Press the last button to the right of the coffee maker,0.7500
+init_1,paligemma_binning_droid,Press the last button to the right of the coffee maker,0.5000
+init_2,paligemma_binning_droid,Put the light blue toy in the bowl,0.0000
+init_2,paligemma_vq_droid,Put the light blue toy in the bowl,1.0000
+init_2,pi0_droid,Put the light blue toy in the bowl,0.7500
+init_2,paligemma_fast_droid,Put the light blue toy in the bowl,1.0000
+init_2,pi0_fast_droid,Put the light blue toy in the bowl,1.0000
+init_2,paligemma_diffusion_droid,Put the light blue toy in the bowl,1.0000
+init_2,paligemma_fast_specialist_droid,Put the light blue toy in the bowl,1.0000
+init_3,pi0_droid,Switch off the second socket from the left,0.0000
+init_3,paligemma_binning_droid,Switch off the second socket from the left,0.0000
+init_3,paligemma_fast_droid,Switch off the second socket from the left,0.7500
+init_3,paligemma_diffusion_droid,Switch off the second socket from the left,1.0000
+init_3,paligemma_fast_specialist_droid,Switch off the second socket from the left,0.7500
+init_3,pi0_fast_droid,Switch off the second socket from the left,0.0000
+init_3,paligemma_vq_droid,Switch off the second socket from the left,0.7500
+init_4,pi0_droid,Move the mug to the left side of the counter,1.0000
+init_4,paligemma_vq_droid,Move the mug to the left side of the counter,0.5000
+init_4,paligemma_fast_droid,Move the mug to the left side of the counter,1.0000
+init_4,pi0_fast_droid,Move the mug to the left side of the counter,0.5000
+init_4,paligemma_binning_droid,Move the mug to the left side of the counter,0.0000
+init_4,paligemma_fast_specialist_droid,Move the mug to the left side of the counter,1.0000
+init_4,paligemma_diffusion_droid,Move the mug to the left side of the counter,1.0000
+init_5,paligemma_diffusion_droid,Fold the cloth,1.0000
+init_5,paligemma_binning_droid,Fold the cloth,1.0000
+init_5,paligemma_fast_specialist_droid,Fold the cloth,1.0000
+init_5,pi0_droid,Fold the cloth,1.0000
+init_5,pi0_fast_droid,Fold the cloth,0.0000
+init_5,paligemma_fast_droid,Fold the cloth,1.0000
+init_5,paligemma_vq_droid,Fold the cloth,1.0000
+init_6,paligemma_binning_droid,Place the red bull can on the metal object,0.0000
+init_6,paligemma_fast_droid,Place the red bull can on the metal object,1.0000
+init_6,paligemma_vq_droid,Place the red bull can on the metal object,1.0000
+init_6,paligemma_diffusion_droid,Place the red bull can on the metal object,1.0000
+init_6,pi0_fast_droid,Place the red bull can on the metal object,0.2500
+init_6,pi0_droid,Place the red bull can on the metal object,1.0000
+init_6,paligemma_fast_specialist_droid,Place the red bull can on the metal object,0.7500
+init_7,paligemma_diffusion_droid,Move the bottle to the right,0.2500
+init_7,paligemma_fast_specialist_droid,Move the bottle to the right,0.2500
+init_7,paligemma_binning_droid,Move the bottle to the right,0.0000
+init_7,paligemma_fast_droid,Move the bottle to the right,0.2500
+init_7,paligemma_vq_droid,Move the bottle to the right,0.2500
+init_7,pi0_droid,Move the bottle to the right,0.2500
+init_7,pi0_fast_droid,Move the bottle to the right,0.2500
+init_8,pi0_droid,Place the lid on top of the blue pot,0.5000
+init_8,paligemma_fast_droid,Place the lid on top of the blue pot,0.5000
+init_8,paligemma_fast_specialist_droid,Place the lid on top of the blue pot,0.2500
+init_8,paligemma_diffusion_droid,Place the lid on top of the blue pot,0.7500
+init_8,paligemma_binning_droid,Place the lid on top of the blue pot,0.0000
+init_8,pi0_fast_droid,Place the lid on top of the blue pot,0.5000
+init_8,paligemma_vq_droid,Place the lid on top of the blue pot,0.5000
+init_9,paligemma_vq_droid,Remove the sponge from the cup,0.5000
+init_9,paligemma_diffusion_droid,Remove the sponge from the cup,0.5000
+init_9,paligemma_fast_droid,Remove the sponge from the cup,0.7500
+init_9,paligemma_fast_specialist_droid,Remove the sponge from the cup,0.2500
+init_9,pi0_fast_droid,Remove the sponge from the cup,0.0000
+init_9,paligemma_binning_droid,Remove the sponge from the cup,0.0000
+init_9,pi0_droid,Remove the sponge from the cup,0.5000
+init_10,pi0_droid,Put one purple block in the bag on the left.,0.5000
+init_10,paligemma_fast_specialist_droid,Put one purple block in the bag on the left.,0.7500
+init_10,paligemma_binning_droid,Put one purple block in the bag on the left.,0.0000
+init_10,paligemma_diffusion_droid,Put one purple block in the bag on the left.,0.5000
+init_10,paligemma_fast_droid,Put one purple block in the bag on the left.,0.2500
+init_10,pi0_fast_droid,Put one purple block in the bag on the left.,0.2500
+init_10,paligemma_vq_droid,Put one purple block in the bag on the left.,0.0000
+init_11,paligemma_fast_specialist_droid,Remove the can from the sink,0.7500
+init_11,pi0_droid,Remove the can from the sink,0.2500
+init_11,paligemma_fast_droid,Remove the can from the sink,1.0000
+init_11,paligemma_binning_droid,Remove the can from the sink,0.5000
+init_11,pi0_fast_droid,Remove the can from the sink,0.5000
+init_11,paligemma_vq_droid,Remove the can from the sink,1.0000
+init_11,paligemma_diffusion_droid,Remove the can from the sink,0.7500
+init_12,paligemma_vq_droid,Move the tissue box to the right.,0.7500
+init_12,pi0_droid,Move the tissue box to the right.,0.5000
+init_12,paligemma_fast_droid,Move the tissue box to the right.,0.7500
+init_12,paligemma_binning_droid,Move the tissue box to the right.,0.0000
+init_12,paligemma_fast_specialist_droid,Move the tissue box to the right.,0.7500
+init_12,pi0_fast_droid,Move the tissue box to the right.,0.2500
+init_12,paligemma_diffusion_droid,Move the tissue box to the right.,1.0000
+init_13,paligemma_vq_droid,Move the pan to the right.,0.2500
+init_13,paligemma_fast_droid,Move the pan to the right.,0.5000
+init_13,pi0_fast_droid,Move the pan to the right.,0.7500
+init_13,paligemma_diffusion_droid,Move the pan to the right.,1.0000
+init_13,paligemma_binning_droid,Move the pan to the right.,0.7500
+init_13,paligemma_fast_specialist_droid,Move the pan to the right.,0.2500
+init_13,pi0_droid,Move the pan to the right.,0.2500
+init_14,pi0_fast_droid,Turn off the flashlight then set it upright on the seat of the wooden chair,0.0000
+init_14,paligemma_binning_droid,Turn off the flashlight then set it upright on the seat of the wooden chair,0.0000
+init_14,paligemma_fast_droid,Turn off the flashlight then set it upright on the seat of the wooden chair,0.5000
+init_14,paligemma_vq_droid,Turn off the flashlight then set it upright on the seat of the wooden chair,0.2500
+init_14,paligemma_fast_specialist_droid,Turn off the flashlight then set it upright on the seat of the wooden chair,0.0000
+init_14,pi0_droid,Turn off the flashlight then set it upright on the seat of the wooden chair,0.5000
+init_14,paligemma_diffusion_droid,Turn off the flashlight then set it upright on the seat of the wooden chair,0.2500
+init_15,pi0_droid,Remove the coffee cup from the clear container on the left.,0.0000
+init_15,paligemma_binning_droid,Remove the coffee cup from the clear container on the left.,0.0000
+init_15,paligemma_diffusion_droid,Remove the coffee cup from the clear container on the left.,0.2500
+init_15,paligemma_fast_droid,Remove the coffee cup from the clear container on the left.,0.2500
+init_15,pi0_fast_droid,Remove the coffee cup from the clear container on the left.,0.2500
+init_15,paligemma_vq_droid,Remove the coffee cup from the clear container on the left.,0.0000
+init_15,paligemma_fast_specialist_droid,Remove the coffee cup from the clear container on the left.,0.2500
+init_16,paligemma_vq_droid,Take the marker from the cup and put it on the table,0.5000
+init_16,paligemma_diffusion_droid,Take the marker from the cup and put it on the table,1.0000
+init_16,pi0_droid,Take the marker from the cup and put it on the table,0.5000
+init_16,paligemma_fast_specialist_droid,Take the marker from the cup and put it on the table,0.5000
+init_16,paligemma_binning_droid,Take the marker from the cup and put it on the table,0.0000
+init_16,paligemma_fast_droid,Take the marker from the cup and put it on the table,0.5000
+init_16,pi0_fast_droid,Take the marker from the cup and put it on the table,0.5000
+init_17,paligemma_diffusion_droid,Put the black tongs on the dish rack,1.0000
+init_17,pi0_droid,Put the black tongs on the dish rack,1.0000
+init_17,paligemma_vq_droid,Put the black tongs on the dish rack,1.0000
+init_17,pi0_fast_droid,Put the black tongs on the dish rack,1.0000
+init_17,paligemma_fast_specialist_droid,Put the black tongs on the dish rack,1.0000
+init_17,paligemma_fast_droid,Put the black tongs on the dish rack,0.7500
+init_17,paligemma_binning_droid,Put the black tongs on the dish rack,0.0000
+init_18,paligemma_binning_droid,Put the white towel in the laundry basket,0.0000
+init_18,paligemma_fast_specialist_droid,Put the white towel in the laundry basket,1.0000
+init_18,pi0_droid,Put the white towel in the laundry basket,1.0000
+init_18,paligemma_diffusion_droid,Put the white towel in the laundry basket,1.0000
+init_18,paligemma_fast_droid,Put the white towel in the laundry basket,1.0000
+init_18,paligemma_vq_droid,Put the white towel in the laundry basket,0.2500
+init_18,pi0_fast_droid,Put the white towel in the laundry basket,1.0000
+init_19,paligemma_diffusion_droid,Pick up the small black object on the right and put it on the blue block inside the blue bowl,1.0000
+init_19,paligemma_binning_droid,Pick up the small black object on the right and put it on the blue block inside the blue bowl,0.0000
+init_19,paligemma_fast_droid,Pick up the small black object on the right and put it on the blue block inside the blue bowl,1.0000
+init_19,pi0_fast_droid,Pick up the small black object on the right and put it on the blue block inside the blue bowl,1.0000
+init_19,paligemma_fast_specialist_droid,Pick up the small black object on the right and put it on the blue block inside the blue bowl,0.2500
+init_19,pi0_droid,Pick up the small black object on the right and put it on the blue block inside the blue bowl,0.5000
+init_19,paligemma_vq_droid,Pick up the small black object on the right and put it on the blue block inside the blue bowl,0.5000
+init_20,paligemma_binning_droid,Pick up the bowl and put it on the object,0.5000
+init_20,paligemma_vq_droid,Pick up the bowl and put it on the object,0.2500
+init_20,paligemma_fast_droid,Pick up the bowl and put it on the object,0.0000
+init_20,pi0_fast_droid,Pick up the bowl and put it on the object,0.5000
+init_20,pi0_droid,Pick up the bowl and put it on the object,0.0000
+init_20,paligemma_diffusion_droid,Pick up the bowl and put it on the object,1.0000
+init_20,paligemma_fast_specialist_droid,Pick up the bowl and put it on the object,1.0000
+init_21,paligemma_binning_droid,Move the blue object to the right tray,0.0000
+init_21,paligemma_diffusion_droid,Move the blue object to the right tray,0.5000
+init_21,pi0_fast_droid,Move the blue object to the right tray,0.0000
+init_21,paligemma_fast_droid,Move the blue object to the right tray,0.0000
+init_21,paligemma_fast_specialist_droid,Move the blue object to the right tray,0.0000
+init_21,paligemma_vq_droid,Move the blue object to the right tray,0.7500
+init_21,pi0_droid,Move the blue object to the right tray,0.5000
+init_22,paligemma_diffusion_droid,Move one orange pen to the right,0.2500
+init_22,paligemma_fast_specialist_droid,Move one orange pen to the right,1.0000
+init_22,paligemma_fast_droid,Move one orange pen to the right,0.5000
+init_22,pi0_droid,Move one orange pen to the right,0.2500
+init_22,pi0_fast_droid,Move one orange pen to the right,0.0000
+init_22,paligemma_binning_droid,Move one orange pen to the right,0.0000
+init_22,paligemma_vq_droid,Move one orange pen to the right,0.0000
+init_23,paligemma_fast_droid,Press the button on the handle of the kettle,0.0000
+init_23,paligemma_fast_specialist_droid,Press the button on the handle of the kettle,1.0000
+init_23,pi0_fast_droid,Press the button on the handle of the kettle,0.0000
+init_23,paligemma_diffusion_droid,Press the button on the handle of the kettle,1.0000
+init_23,pi0_droid,Press the button on the handle of the kettle,0.0000
+init_23,paligemma_vq_droid,Press the button on the handle of the kettle,0.0000
+init_23,paligemma_binning_droid,Press the button on the handle of the kettle,0.0000
+init_24,pi0_droid,Unfold the edge of the orange towel,0.0000
+init_24,paligemma_diffusion_droid,Unfold the edge of the orange towel,0.5000
+init_24,pi0_fast_droid,Unfold the edge of the orange towel,0.0000
+init_24,paligemma_fast_droid,Unfold the edge of the orange towel,0.7500
+init_24,paligemma_binning_droid,Unfold the edge of the orange towel,0.5000
+init_24,paligemma_vq_droid,Unfold the edge of the orange towel,1.0000
+init_24,paligemma_fast_specialist_droid,Unfold the edge of the orange towel,0.5000
+init_25,paligemma_fast_droid,Move the charger to the right,0.5000
+init_25,pi0_fast_droid,Move the charger to the right,0.7500
+init_25,paligemma_vq_droid,Move the charger to the right,1.0000
+init_25,pi0_droid,Move the charger to the right,0.2500
+init_25,paligemma_diffusion_droid,Move the charger to the right,1.0000
+init_25,paligemma_fast_specialist_droid,Move the charger to the right,1.0000
+init_25,paligemma_binning_droid,Move the charger to the right,0.0000
+init_26,pi0_fast_droid,Open the microwave door,0.0000
+init_26,paligemma_binning_droid,Open the microwave door,0.2500
+init_26,pi0_droid,Open the microwave door,0.5000
+init_26,paligemma_vq_droid,Open the microwave door,0.0000
+init_26,paligemma_fast_droid,Open the microwave door,0.7500
+init_26,paligemma_diffusion_droid,Open the microwave door,0.2500
+init_26,paligemma_fast_specialist_droid,Open the microwave door,0.0000
+init_27,paligemma_fast_droid,Remove the pen from the green cup and put it on the table,1.0000
+init_27,pi0_fast_droid,Remove the pen from the green cup and put it on the table,0.0000
+init_27,paligemma_fast_specialist_droid,Remove the pen from the green cup and put it on the table,1.0000
+init_27,paligemma_vq_droid,Remove the pen from the green cup and put it on the table,1.0000
+init_27,paligemma_diffusion_droid,Remove the pen from the green cup and put it on the table,0.5000
+init_27,pi0_droid,Remove the pen from the green cup and put it on the table,0.5000
+init_27,paligemma_binning_droid,Remove the pen from the green cup and put it on the table,0.0000
+init_28,paligemma_binning_droid,Press a key on the keyboard,0.0000
+init_28,pi0_droid,Press a key on the keyboard,1.0000
+init_28,pi0_fast_droid,Press a key on the keyboard,1.0000
+init_28,paligemma_diffusion_droid,Press a key on the keyboard,1.0000
+init_28,paligemma_fast_specialist_droid,Press a key on the keyboard,1.0000
+init_28,paligemma_vq_droid,Press a key on the keyboard,0.7500
+init_28,paligemma_fast_droid,Press a key on the keyboard,0.5000
+init_29,paligemma_fast_specialist_droid,Move the bottle from the mat to the container,1.0000
+init_29,paligemma_fast_droid,Move the bottle from the mat to the container,1.0000
+init_29,pi0_fast_droid,Move the bottle from the mat to the container,1.0000
+init_29,paligemma_diffusion_droid,Move the bottle from the mat to the container,1.0000
+init_29,paligemma_binning_droid,Move the bottle from the mat to the container,0.2500
+init_29,paligemma_vq_droid,Move the bottle from the mat to the container,1.0000
+init_29,pi0_droid,Move the bottle from the mat to the container,1.0000
+init_30,pi0_fast_droid,Put the orange object in the box.,1.0000
+init_30,paligemma_diffusion_droid,Put the orange object in the box.,0.5000
+init_30,paligemma_fast_droid,Put the orange object in the box.,0.7500
+init_30,paligemma_fast_specialist_droid,Put the orange object in the box.,0.7500
+init_30,paligemma_binning_droid,Put the orange object in the box.,0.2500
+init_30,pi0_droid,Put the orange object in the box.,0.5000
+init_30,paligemma_vq_droid,Put the orange object in the box.,0.7500
+init_31,paligemma_vq_droid,Pour the contents from yellow bowl into the orange bowl,0.0000
+init_31,pi0_droid,Pour the contents from yellow bowl into the orange bowl,0.0000
+init_31,pi0_fast_droid,Pour the contents from yellow bowl into the orange bowl,0.0000
+init_31,paligemma_diffusion_droid,Pour the contents from yellow bowl into the orange bowl,0.2500
+init_31,paligemma_binning_droid,Pour the contents from yellow bowl into the orange bowl,0.0000
+init_31,paligemma_fast_specialist_droid,Pour the contents from yellow bowl into the orange bowl,0.2500
+init_31,paligemma_fast_droid,Pour the contents from yellow bowl into the orange bowl,0.0000
+init_32,paligemma_binning_droid,"Turn the chair ninety degrees anticlockwise, pick up the hat and hang it on the right corner of the chair backrest",0.0000
+init_32,paligemma_fast_droid,"Turn the chair ninety degrees anticlockwise, pick up the hat and hang it on the right corner of the chair backrest",0.5000
+init_32,pi0_droid,"Turn the chair ninety degrees anticlockwise, pick up the hat and hang it on the right corner of the chair backrest",0.2500
+init_32,paligemma_fast_specialist_droid,"Turn the chair ninety degrees anticlockwise, pick up the hat and hang it on the right corner of the chair backrest",0.5000
+init_32,paligemma_vq_droid,"Turn the chair ninety degrees anticlockwise, pick up the hat and hang it on the right corner of the chair backrest",0.2500
+init_32,pi0_fast_droid,"Turn the chair ninety degrees anticlockwise, pick up the hat and hang it on the right corner of the chair backrest",0.2500
+init_32,paligemma_diffusion_droid,"Turn the chair ninety degrees anticlockwise, pick up the hat and hang it on the right corner of the chair backrest",0.2500
+init_33,pi0_fast_droid,Move green mug to the left,1.0000
+init_33,paligemma_binning_droid,Move green mug to the left,0.0000
+init_33,paligemma_fast_droid,Move green mug to the left,1.0000
+init_33,paligemma_fast_specialist_droid,Move green mug to the left,1.0000
+init_33,pi0_droid,Move green mug to the left,1.0000
+init_33,paligemma_vq_droid,Move green mug to the left,0.0000
+init_33,paligemma_diffusion_droid,Move green mug to the left,1.0000
+init_34,paligemma_binning_droid,Remove the grey pen from the white cup then put it on the table,0.2500
+init_34,paligemma_fast_specialist_droid,Remove the grey pen from the white cup then put it on the table,0.5000
+init_34,paligemma_diffusion_droid,Remove the grey pen from the white cup then put it on the table,0.2500
+init_34,paligemma_vq_droid,Remove the grey pen from the white cup then put it on the table,0.2500
+init_34,paligemma_fast_droid,Remove the grey pen from the white cup then put it on the table,0.2500
+init_34,pi0_droid,Remove the grey pen from the white cup then put it on the table,0.2500
+init_34,pi0_fast_droid,Remove the grey pen from the white cup then put it on the table,0.0000
+init_35,paligemma_fast_specialist_droid,Move the white pillow to the left,0.2500
+init_35,paligemma_binning_droid,Move the white pillow to the left,0.0000
+init_35,paligemma_vq_droid,Move the white pillow to the left,0.2500
+init_35,pi0_droid,Move the white pillow to the left,0.0000
+init_35,pi0_fast_droid,Move the white pillow to the left,0.7500
+init_35,paligemma_fast_droid,Move the white pillow to the left,0.2500
+init_35,paligemma_diffusion_droid,Move the white pillow to the left,0.2500
+init_36,paligemma_diffusion_droid,Put the peach and blue shirts in the basket,0.5000
+init_36,paligemma_binning_droid,Put the peach and blue shirts in the basket,0.0000
+init_36,pi0_droid,Put the peach and blue shirts in the basket,0.7500
+init_36,paligemma_fast_specialist_droid,Put the peach and blue shirts in the basket,0.2500
+init_36,pi0_fast_droid,Put the peach and blue shirts in the basket,0.2500
+init_36,paligemma_fast_droid,Put the peach and blue shirts in the basket,0.2500
+init_36,paligemma_vq_droid,Put the peach and blue shirts in the basket,0.5000
+init_37,paligemma_binning_droid,Move the bottle to the right,0.0000
+init_37,paligemma_fast_specialist_droid,Move the bottle to the right,0.0000
+init_37,paligemma_vq_droid,Move the bottle to the right,0.0000
+init_37,pi0_droid,Move the bottle to the right,0.0000
+init_37,paligemma_fast_droid,Move the bottle to the right,0.2500
+init_37,paligemma_diffusion_droid,Move the bottle to the right,1.0000
+init_37,pi0_fast_droid,Move the bottle to the right,0.0000
+init_38,paligemma_fast_droid,Remove the whisk from the glass jar,0.5000
+init_38,paligemma_diffusion_droid,Remove the whisk from the glass jar,0.7500
+init_38,pi0_fast_droid,Remove the whisk from the glass jar,0.2500
+init_38,paligemma_vq_droid,Remove the whisk from the glass jar,0.2500
+init_38,pi0_droid,Remove the whisk from the glass jar,0.5000
+init_38,paligemma_fast_specialist_droid,Remove the whisk from the glass jar,0.5000
+init_38,paligemma_binning_droid,Remove the whisk from the glass jar,0.0000
+init_39,paligemma_vq_droid,Press the top of the transparent bowl,0.5000
+init_39,pi0_droid,Press the top of the transparent bowl,0.0000
+init_39,paligemma_binning_droid,Press the top of the transparent bowl,1.0000
+init_39,paligemma_fast_specialist_droid,Press the top of the transparent bowl,0.0000
+init_39,paligemma_diffusion_droid,Press the top of the transparent bowl,1.0000
+init_39,paligemma_fast_droid,Press the top of the transparent bowl,1.0000
+init_39,pi0_fast_droid,Press the top of the transparent bowl,1.0000

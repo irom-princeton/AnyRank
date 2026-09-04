@@ -208,5 +208,5 @@ __marimo__/
 
 # Experiments
 imglib/
-lbm_outputs_new/
-roboarena_outputs_graphical_active/
+lbm_outputs_new/**
+roboarena_outputs_graphical_active/**
