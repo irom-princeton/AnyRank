@@ -170,7 +170,8 @@ class SequentialGraphicalTest:
             i = candidates[0]
             transitive_queue.discard(i)
 
-            print(f"Candidate hypotheses to reject at this step: {candidates}. We will reject hypothesis H{i} with p-value {p[i]:.4e} <= alpha {self.alpha[i]:.4e}")
+            if verbose:
+                print(f"Candidate hypotheses to reject at this step: {candidates}. We will reject hypothesis H{i} with p-value {p[i]:.4e} <= alpha {self.alpha[i]:.4e}")
             
             if allow_transitive:
                 rejected_at_curr_step = [hypotheses[i] for i in rejected]
@@ -415,7 +416,8 @@ class SequentialGraphicalTest:
         num_hypotheses = len(ordered_hypotheses_policy_indices)
         policy_counts = {i: 0 for i in range(policy_data.shape[1])}
         num_policies = policy_data.shape[1]
-        print(f"Running means: ", np.nanmean(policy_data, axis=0), "\n")
+        if verbose:
+            print(f"Running means: ", np.nanmean(policy_data, axis=0), "\n")
 
         if alpha_per_hypothesis is not None:
             self.set_params(alpha=alpha_per_hypothesis)
@@ -471,11 +473,12 @@ class SequentialGraphicalTest:
             for k in range(len(all_rejected)):
                 if hypotheses_completed[all_rejected[k]] <= 0.5:
                     hypotheses_completed[all_rejected[k]] = 1.0
-                    print(
-                        f"Evaluations: {np.array2string(KK, separator=', ')}, "
-                        f"active_alpha: {np.array2string(active_alpha, precision=4, separator=', ')}, "
-                        f"p_values: {np.array2string(p_values, precision=4, separator=', ')}"
-                    )
+                    if verbose:
+                        print(
+                            f"Evaluations: {np.array2string(KK, separator=', ')}, "
+                            f"active_alpha: {np.array2string(active_alpha, precision=4, separator=', ')}, "
+                            f"p_values: {np.array2string(p_values, precision=4, separator=', ')}"
+                        )
             
             # Hypothesis also completed if no more samples may be drawn
             for k in range(num_hypotheses):
@@ -487,29 +490,7 @@ class SequentialGraphicalTest:
             for i in range(num_hypotheses):
                 if hypotheses_completed[i] > 0.5:
                     active_alpha[i] *= 0.
-                    
-            # Hypothesis also completed if no more samples may be drawn
-            for k in range(num_hypotheses):
-                hypothesis_policy_indices = ordered_hypotheses_policy_indices[k]
-                if hypotheses_completed[k] > 0.5 and np.isclose(hypotheses_correct[hypothesis_policy_indices], 0.0) and KK[k] < policy_data.shape[0]:
-                    p0_index, p1_index = hypothesis_policy_indices
-                    data0 = policy_data[:, p0_index]
-                    data1 = policy_data[:, p1_index]
 
-                    nsm_alt = ContinuousNsmTest(
-                        alternative=Hypothesis.P0LessThanP1, alpha=alpha_per_hypothesis[i], c=np.arange(2)/1.
-                    )
-                    nsm_null = ContinuousNsmTest(
-                        alternative=Hypothesis.P0MoreThanP1, alpha=alpha_per_hypothesis[i], c=np.arange(2)/1.
-                    )
-                    n_k = int(KK[k])
-                    valid_k = ~np.isnan(data0[:n_k]) & ~np.isnan(data1[:n_k])
-                    d0_k, d1_k = data0[:n_k][valid_k], data1[:n_k][valid_k]
-                    res_alt = nsm_alt.run_on_sequence(d0_k, d1_k)
-                    p_value_alt = res_alt.info["P-Value"]
-                    res_null = nsm_null.run_on_sequence(d0_k, d1_k)
-                    p_value_null = res_null.info["P-Value"]
-                    
             # Iterate through test definitions
             # Active data collection:
             # for i, hypothesis_policy_indices in enumerate(ordered_hypotheses_policy_indices):
@@ -601,7 +582,7 @@ class SequentialGraphicalTest:
                         plt.savefig(os.path.join(plot_dir, f"martingale_history_H{i}.png"))
                         plt.close(fig)
 
-                rejected_at_k, graph_over_time, new_alpha_at_rejected, hypotheses_correct = self.sequential_graphical_test(p_values, rejected, hypotheses_correct, ordered_hypotheses_policy_indices, policy_data.shape[1], p_value_types, verbose=False, allow_transitive=allow_transitive)
+                rejected_at_k, graph_over_time, new_alpha_at_rejected, hypotheses_correct = self.sequential_graphical_test(p_values, rejected, hypotheses_correct, ordered_hypotheses_policy_indices, policy_data.shape[1], p_value_types, verbose=verbose, allow_transitive=allow_transitive)
                 graphs_over_time.extend(graph_over_time)
                 for j in range(len(new_alpha_at_rejected)):
                     alpha_at_rejected.append(new_alpha_at_rejected[j])
@@ -618,7 +599,7 @@ class SequentialGraphicalTest:
                 # Assert times to decision and number of hypotheses_correct that are not 0
                 num_decided = sum([1 for v in hypotheses_correct.values() if v != 0.0])
                 num_decision_times = sum([1 for v in decision_times.values() if v != "N/A"])
-                if num_decided != num_decision_times:
+                if num_decided != num_decision_times and verbose:
                     print(f"Number of decided hypotheses {num_decided} does not match number of decision times {num_decision_times}")
                     for k,v in hypotheses_correct.items():
                         if k not in rejected_hypotheses:
@@ -631,7 +612,9 @@ class SequentialGraphicalTest:
                     if i not in rejected:
                         nsm_test = tests[i]
                         nsm_test.alpha = self.alpha[i]
-            hyp_completed_vs_time[iters+1:] +=  hyp_completed_vs_time[iters]
+        # Fill any unused tail once with the final observed completion fraction.
+        if iters + 1 < hyp_completed_vs_time.shape[0]:
+            hyp_completed_vs_time[iters + 1:] = hyp_completed_vs_time[iters]
         return rejected_hypotheses, rejected, decision_times, p_values, self.G, graphs_over_time, alpha_at_rejected, hypotheses_correct, hyp_completed_vs_time                   
                         
         # for k in range(len(policy_data)): # sequentially go through data points
