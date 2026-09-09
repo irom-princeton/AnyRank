@@ -23,14 +23,15 @@ from multitest.individual_test import (
     main,
 )
 
-def pairwise_tests_w_plot(policy_data, alpha, p0_index, p1_index, **kwargs):
+def pairwise_tests_w_plot(policy_data, alpha, p0_index, p1_index, inference_mode="ranking_no_ties", **kwargs):
     data0 = policy_data[p0_index]
     data1 = policy_data[p1_index]
 
     # test_for_alternative alternative is P0<P1
     # test_for_null alternative is P0>P1
     mirrored_nsm_test = MirroredContinuousNsmTest(
-        alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10
+        alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10,
+        inference_mode=inference_mode,
     )
 
     nsm_alt = ContinuousNsmTest(

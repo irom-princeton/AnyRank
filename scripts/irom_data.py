@@ -128,7 +128,7 @@ def _results_dir(subfolder, name):
     base = 'irom_data_outputs'
     return os.path.join(base, subfolder, name) if subfolder else os.path.join(base, name)
 
-def run_graphical_carrot(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+def run_graphical_carrot(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True, inference_mode="ranking_no_ties"):
     policy_data, real_means, sim_means = carrot(wm, init_cond)
     real_means_values = list(real_means.values())
     sim_means_values = list(sim_means.values())
@@ -136,14 +136,14 @@ def run_graphical_carrot(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolde
     print(f"Pearson correlation between real and sim means: {pearson_corr:.4f}, p-value: {p_value:.4f}")
     spearman_corr, p_value_spearman = stats.spearmanr(real_means_values, sim_means_values)
     print(f"Spearman correlation between real and sim means: {spearman_corr:.4f}, p-value: {p_value_spearman:.4f}")
-    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'carrot_wm_{wm}_init_{init_cond}'), graph_type=graph_type)
+    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'carrot_wm_{wm}_init_{init_cond}'), graph_type=graph_type, inference_mode=inference_mode)
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=False, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
-def run_graphical_towel(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+def run_graphical_towel(wm, init_cond, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True, inference_mode="ranking_no_ties"):
     policy_data, real_means, sim_means = towel(wm, init_cond)
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
-    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'towel_wm_{wm}_init_{init_cond}'), graph_type=graph_type)
+    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, f'towel_wm_{wm}_init_{init_cond}'), graph_type=graph_type, inference_mode=inference_mode)
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=False, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
     
@@ -161,6 +161,16 @@ if __name__ == "__main__":
                         choices=ALL_METHODS,
                         metavar="METHOD",
                         help=f"Methods to run (default: all). Choices: {', '.join(ALL_METHODS)}")
+    parser.add_argument(
+        "--inference_mode",
+        type=str,
+        default="ranking_no_ties",
+        help=(
+            "Mirrored inference_mode threaded into MirroredContinuousNsmTest "
+            "and MirroredContinuousNsmTestAlphaAdaptive constructions. "
+            "AnyRank defaults to 'ranking_no_ties' (see ExperimentConfig)."
+        ),
+    )
 
     args = parser.parse_args()
     alpha = args.alpha
@@ -193,17 +203,17 @@ if __name__ == "__main__":
     for beta in beta_range:
         for wm in wm_types_towel:
             for init_cond in init_conds_towel:
-                # run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
-                run_graphical_towel(wm=wm, init_cond=init_cond, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+                # run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode)
+                run_graphical_towel(wm=wm, init_cond=init_cond, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode)
                 # continue
 
     for beta in beta_range:
         for wm in wm_types_carrot:
             for init_cond in init_conds_carrot:
-                run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+                run_graphical_carrot(wm=wm, init_cond=init_cond, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode)
     
     # for beta in beta_range:
-    #     run_graphical_carrot(wm="specialist", init_cond="all", beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+    #     run_graphical_carrot(wm="specialist", init_cond="all", beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode)
 
     
 

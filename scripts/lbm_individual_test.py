@@ -175,28 +175,28 @@ def _results_dir(subfolder, name):
     base = 'lbm_outputs_new'
     return os.path.join(base, subfolder, name) if subfolder else os.path.join(base, name)
 
-def run_graphical_experiment_A(alpha=0.1, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+def run_graphical_experiment_A(alpha=0.1, beta=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True, inference_mode="ranking_no_ties"):
     policy_data, real_means, sim_means = experiment_A()
     corr = get_corr(real_means, sim_means)
     print(f"Correlation between real and sim means: {corr:.4f}")
-    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_A'), graph_type=graph_type)
+    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_A'), graph_type=graph_type, inference_mode=inference_mode)
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
-def run_graphical_experiment_B(id=True, ood=False, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+def run_graphical_experiment_B(id=True, ood=False, beta=1, alpha=0.1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True, inference_mode="ranking_no_ties"):
     policy_data, real_means, sim_means = experiment_B(id=id, ood=ood)
     corr = get_corr(real_means, sim_means)
     print(f"Correlation between real and sim means: {corr:.4f}")
-    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_B_id_{}_ood_{}'.format(id, ood)), graph_type=graph_type)
+    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_B_id_{}_ood_{}'.format(id, ood)), graph_type=graph_type, inference_mode=inference_mode)
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
-def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, alpha=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True):
+def run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=1, alpha=1, labels=None, subfolder=None, graph_type="soft_masked", methods=None, allow_transitive=True, inference_mode="ranking_no_ties"):
     policy_data, real_means, sim_means = experiment_C(id=id, ood=ood, distshift=distshift)
     corr = get_corr(real_means, sim_means)
     print(f"Correlation between real and sim means: {corr:.4f}")
     # Print the number of evals per policy:
     for policy, trials in policy_data.items():
         print(f"Policy: {policy}, Number of evals: {len(trials)}, Success rate: {real_means[policy]:.2f}, Sim success rate: {sim_means[policy]:.2f}")
-    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift)), graph_type=graph_type)
+    cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=_results_dir(subfolder, 'experiment_C_id_{}_ood_{}_distshift_{}'.format(id, ood, distshift)), graph_type=graph_type, inference_mode=inference_mode)
     main(policy_data, sim_means=sim_means, real_means=real_means, bernoulli=True, cfg=cfg, labels=labels, methods=methods, allow_transitive=allow_transitive)
 
 def get_corr(real_means, sim_means):
@@ -221,7 +221,16 @@ if __name__ == "__main__":
                         choices=ALL_METHODS,
                         metavar="METHOD",
                         help=f"Methods to run (default: all). Choices: {', '.join(ALL_METHODS)}")
-    
+    parser.add_argument(
+        "--inference_mode",
+        type=str,
+        default="ranking_no_ties",
+        help=(
+            "Mirrored inference_mode threaded into MirroredContinuousNsmTest "
+            "and MirroredContinuousNsmTestAlphaAdaptive constructions. "
+            "AnyRank defaults to 'ranking_no_ties' (see ExperimentConfig)."
+        ),
+    )
     args = parser.parse_args()
     alpha = args.alpha
     if args.subfolder is None:
@@ -250,22 +259,22 @@ if __name__ == "__main__":
 
     for beta in beta_range:
         ## Experiment A: In-distribution performance comparison
-        run_graphical_experiment_A(beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive)
+        run_graphical_experiment_A(beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode)
 
         # ## Experiment B: In-distribution performance comparison
-        run_graphical_experiment_B(id=True, ood=False, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID only
+        run_graphical_experiment_B(id=True, ood=False, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode) # ID only
 
         # ## Experiment C: In-distribution performance comparison
-        run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID only
+        run_graphical_experiment_C(id=True, ood=False, distshift=None, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode) # ID only
 
         # ## Experiment B: Out-of-distribution performance comparison
-        # # run_graphical_experiment_B(id=False, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # OOD only
+        # # run_graphical_experiment_B(id=False, ood=True, beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode) # OOD only
 
         # ## Experiment B: Out-of-distribution and nominal performance comparison
-        run_graphical_experiment_B(id=True, ood=True, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID and OOD
+        run_graphical_experiment_B(id=True, ood=True, beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode) # ID and OOD
 
         ## Experiment C: Out-of-distribution objects and nominal performance comparison
-        run_graphical_experiment_C(id=True, ood=True, distshift="distshift", beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID and OOD with distribution shift
+        run_graphical_experiment_C(id=True, ood=True, distshift="distshift", beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode) # ID and OOD with distribution shift
 
         ## Experiment C: Out-of-distribution stations and nominal performance comparison
-        run_graphical_experiment_C(id=True, ood=True, distshift="novel", beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive) # ID and OOD with novel station
+        run_graphical_experiment_C(id=True, ood=True, distshift="novel", beta=beta, alpha=alpha, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode) # ID and OOD with novel station

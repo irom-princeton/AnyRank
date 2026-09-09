@@ -12,7 +12,17 @@ import copy
 from multitest.transivity import transitive_closure_relations, transitive_decision_times
 
 class SequentialGraphicalTest:
-    def __init__(self, num_policies, null_hypotheses, total_alpha=0.05):
+    def __init__(
+        self,
+        num_policies,
+        null_hypotheses,
+        total_alpha=0.05,
+        inference_mode="ranking_no_ties",
+    ):
+        # AnyRank is a ranking tool with no baseline policy, so its default is
+        # ``ranking_no_ties`` rather than SCC/SBT's ``comparison`` default.
+        # Do not "align" this default without reading the tie-semantics doc.
+        self.inference_mode = inference_mode
         self.total_alpha = total_alpha # total alpha is the family-wise error rate we want to control, so we will be working with 1 - total_alpha as the error budget to allocate
         self.num_policies=num_policies # number of policies
         self.num_hypotheses = len(null_hypotheses) # number of hypotheses
@@ -64,7 +74,8 @@ class SequentialGraphicalTest:
 
     def initialize_nsm_test(self, Nmax, alpha):
         nonparametric_nsm_test = MirroredContinuousNsmTest(
-                alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(2)
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(2),
+                inference_mode=self.inference_mode,
             )
         return nonparametric_nsm_test
     
@@ -371,25 +382,29 @@ class SequentialGraphicalTest:
 
     def initialize_graphical_nsm_test(self, Nmax, alpha):
         nonparametric_nsm_test = MirroredContinuousNsmTestAlphaAdaptive(
-                alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(2)
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(2),
+                inference_mode=self.inference_mode,
             )
         return nonparametric_nsm_test
 
     def initialize_bonferroni_test(self, Nmax, alpha, num_hypotheses):
         bonferroni_step_test = MirroredContinuousNsmTest(
-                alternative=Hypothesis.P0LessThanP1, alpha=alpha/num_hypotheses, c=np.arange(2)
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha/num_hypotheses, c=np.arange(2),
+                inference_mode=self.inference_mode,
             )
         return bonferroni_step_test
     
     def initialize_graphical_nsm_test_partial_progress(self, Nmax, alpha):
         nonparametric_nsm_test = MirroredContinuousNsmTestAlphaAdaptive(
-                alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(11)/10,
+                inference_mode=self.inference_mode,
             )
         return nonparametric_nsm_test
 
     def initialize_bonferroni_test_partial_progress(self, Nmax, alpha, num_hypotheses):
         bonferroni_step_test = MirroredContinuousNsmTest(
-                alternative=Hypothesis.P0LessThanP1, alpha=alpha/num_hypotheses, c=np.arange(11)/10
+                alternative=Hypothesis.P0LessThanP1, alpha=alpha/num_hypotheses, c=np.arange(11)/10,
+                inference_mode=self.inference_mode,
             )
         return bonferroni_step_test
 

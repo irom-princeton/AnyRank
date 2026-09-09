@@ -148,6 +148,16 @@ if __name__ == '__main__':
                         choices=ALL_METHODS,
                         metavar="METHOD",
                         help=f"Methods to run (default: all). Choices: {', '.join(ALL_METHODS)}")
+    parser.add_argument(
+        "--inference_mode",
+        type=str,
+        default="ranking_no_ties",
+        help=(
+            "Mirrored inference_mode threaded into MirroredContinuousNsmTest "
+            "and MirroredContinuousNsmTestAlphaAdaptive constructions. "
+            "AnyRank defaults to 'ranking_no_ties' (see ExperimentConfig)."
+        ),
+    )
     # Synthetic-experiment knobs (used only when --exp_name synthetic)
     parser.add_argument("--n_policies", type=int, default=10, help="Number of synthetic policies")
     parser.add_argument("--n_sim", type=int, default=100, help="Samples for the synthetic sim prior")
@@ -195,28 +205,28 @@ if __name__ == '__main__':
     ## RoboArena 4 with 20 heldout evals per policy
     if exp_name == "roboarena4":
         for beta in beta_range:
-            cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     ## RoboArena 7 with 20 heldout evals per policy
     if exp_name == "roboarena7":
         for beta in beta_range:
-            seven_cfg = ExperimentConfig(beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            seven_cfg = ExperimentConfig(beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=seven_policies, cfg=seven_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=seven_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     ## RoboArena WM experiment with 4 policies
     if exp_name == "roboarena4_wm_prior":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     ## RoboArena WM experiment with 7 policies
     if exp_name == "roboarena7_wm_prior":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
@@ -225,7 +235,7 @@ if __name__ == '__main__':
     if exp_name == "synthetic":
         for beta in beta_range:
             # n_prior=0: the sim prior is generated separately (not split from real evals).
-            syn_cfg = ExperimentConfig(n_prior=0, alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            syn_cfg = ExperimentConfig(n_prior=0, alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = synthetic_experiment(
                 n_policies=args.n_policies, n_sim=args.n_sim, n_real=args.n_real,
                 std=args.std, seed=args.seed, cfg=syn_cfg)
@@ -237,7 +247,7 @@ if __name__ == '__main__':
         result_dir = results_dir(exp_name + f"_npol_{args.n_policies}_nsim_{args.n_sim}_nreal_{args.n_real}")
         for beta in beta_range:
             for run in range(nruns):
-                syn_cfg = ExperimentConfig(n_prior=0, alpha=alpha, beta=beta, results_dir=os.path.join(result_dir, f"run_{run}"), graph_type=args.graph_type)
+                syn_cfg = ExperimentConfig(n_prior=0, alpha=alpha, beta=beta, results_dir=os.path.join(result_dir, f"run_{run}"), graph_type=args.graph_type, inference_mode=args.inference_mode)
                 policy_data, policies, sim_means, real_means, bernoulli = synthetic_experiment(
                     n_policies=args.n_policies, n_sim=args.n_sim, n_real=args.n_real,
                     std=args.std, seed=run, cfg=syn_cfg)
@@ -250,12 +260,12 @@ if __name__ == '__main__':
 
     if exp_name == "all_policies_fixed":
         for beta in beta_range:
-            all_cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            all_cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=all_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=all_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     elif exp_name == "all_policies_fixed_floppy":
         for beta in beta_range:
-            all_cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            all_cfg = ExperimentConfig(alpha=alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=None, cfg=all_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=all_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
