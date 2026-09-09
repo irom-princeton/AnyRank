@@ -19,9 +19,8 @@ class SequentialGraphicalTest:
         total_alpha=0.05,
         inference_mode="ranking_no_ties",
     ):
-        # AnyRank is a ranking tool with no baseline policy, so its default is
-        # ``ranking_no_ties`` rather than SCC/SBT's ``comparison`` default.
-        # Do not "align" this default without reading the tie-semantics doc.
+        # See README "Inference modes" and statistical_comparison_core.MirroredTestMixin.
+        # Do not align AnyRank's ranking_no_ties default with SCC/SBT comparison.
         self.inference_mode = inference_mode
         self.total_alpha = total_alpha # total alpha is the family-wise error rate we want to control, so we will be working with 1 - total_alpha as the error budget to allocate
         self.num_policies=num_policies # number of policies

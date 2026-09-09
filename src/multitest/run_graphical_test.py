@@ -34,9 +34,8 @@ class ExperimentConfig:
     results_dir: str = 'outputs/roboarena_subset4'
     plot_violin: bool = True           # set to False to skip violin plots (data is always saved)
     graph_type: str = "soft_masked"    # "soft_masked" or "fully_connected"
-    # AnyRank default is ranking_no_ties because AnyRank is a ranking tool with
-    # no baseline policy; SCC/SBT default to "comparison" instead. Do not
-    # "align" this default without reading the tie-semantics doc.
+    # See README "Inference modes" and statistical_comparison_core.MirroredTestMixin.
+    # Do not align AnyRank's ranking_no_ties default with SCC/SBT comparison.
     inference_mode: str = "ranking_no_ties"
 
 
