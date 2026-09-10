@@ -24,7 +24,12 @@ Both methods control the family-wise error rate at ``GLOBAL_ALPHA``:
 Note on STEP policy synthesis: ``MirroredStepTest`` loads a precomputed decision
 policy keyed by ``(n_max, individual_alpha)``; if none exists it synthesizes one
 via a subprocess, which can be slow. We cap every policy to one common ``n_max``
-so only a single policy is required per run.
+so only a single policy is required per run. STEP's policy key is also
+affected by ``--inference_mode``: ``ranking`` halves the policy alpha, so
+``--inference_mode ranking`` can trigger a one-time STEP policy synthesis for
+each derived alpha value the first time it is used. Under the default
+``ranking_no_ties`` the policy alpha equals the declared per-comparison alpha,
+so no additional synthesis is triggered.
 """
 
 import argparse
@@ -42,6 +47,7 @@ from multitest.individual_test import (
     main as anyrank_main,
 )
 from multitest.plot_cld import make_violin_plots_from_ttds
+from multitest.inference_modes import ANYRANK_INFERENCE_MODE_CHOICES
 
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from sequentialized_barnard_tests.step import MirroredStepTest
@@ -134,7 +140,7 @@ def labels_for(policies):
 # ---------------------------------------------------------------------------
 # STEP + Bonferroni
 # ---------------------------------------------------------------------------
-def compute_step_ttds(binary_data, policies, individual_alpha, n_max, random_seed=42):
+def compute_step_ttds(binary_data, policies, individual_alpha, n_max, random_seed=42, inference_mode="ranking_no_ties"):
     """Run pairwise ``MirroredStepTest`` on binarized data.
 
     Returns ``{(name_i, name_j): ttd}`` where ``ttd`` is the time-to-decision
@@ -154,6 +160,7 @@ def compute_step_ttds(binary_data, policies, individual_alpha, n_max, random_see
             n_max=n_max,
             alpha=individual_alpha,
             random_seed=random_seed,
+            inference_mode=inference_mode,
         )
         result = test.run_on_sequence(pi0, pi1)
         if result.decision == Decision.FailToDecide:
@@ -174,6 +181,7 @@ def step_and_bernoulli(
     alpha=GLOBAL_ALPHA,
     threshold=SUCCESS_THRESHOLD,
     max_sample_size=None,
+    inference_mode="ranking_no_ties",
 ):
     """STEP procedure with Bonferroni correction on binarized data.
 
@@ -201,7 +209,7 @@ def step_and_bernoulli(
     for p in policies:
         print(f"[STEP] {p}: n={n_max}, success_rate={np.mean(binary_data[p]):.3f}")
 
-    step_ttd = compute_step_ttds(binary_data, policies, individual_alpha, n_max)
+    step_ttd = compute_step_ttds(binary_data, policies, individual_alpha, n_max, inference_mode=inference_mode)
 
     make_violin_plots_from_ttds(
         progress_array_dict=binary_data,
@@ -228,6 +236,7 @@ def graphical_active(
     bernoulli=False,    
     graph_type="fully_connected",
     allow_transitive=True,
+    inference_mode="ranking_no_ties",
 ):
     """AnyRank ``graphical_active`` multitest on continuous task-progress data.
 
@@ -268,6 +277,7 @@ def graphical_active(
         beta=beta,
         results_dir=out_dir,
         graph_type=graph_type,
+        inference_mode=inference_mode,
     )
     anyrank_main(
         policy_data,
@@ -314,6 +324,17 @@ def main():
     parser.add_argument("--out_dir", type=str,
                         default=os.path.join("outputs", "compare_to_step_seven"),
                         help="Output directory for the comparison plots.")
+    parser.add_argument(
+        "--inference_mode",
+        type=str,
+        default="ranking_no_ties",
+        choices=ANYRANK_INFERENCE_MODE_CHOICES,
+        help=(
+            "Shared inference_mode for STEP and AnyRank. "
+            "'ranking' halves the STEP policy alpha and can trigger one-time "
+            "STEP policy synthesis per derived alpha."
+        ),
+    )
     args = parser.parse_args()
 
     policies = POLICY_SETS[args.policies]
@@ -333,6 +354,7 @@ def main():
                 out_dir=os.path.join(args.out_dir, str(Nmax), "step"),
                 alpha=args.alpha, threshold=args.threshold,
                 max_sample_size=args.max_sample_size,
+                inference_mode=args.inference_mode,
             )
             produced["step"] = step_png
 
@@ -342,7 +364,8 @@ def main():
                 out_dir=os.path.join(args.out_dir, str(Nmax), "anyrank"),
                 alpha=args.alpha, n_prior=args.n_prior, beta=args.beta,
                 graph_type=args.graph_type,
-                bernoulli=args.bernoulli
+                bernoulli=args.bernoulli,
+                inference_mode=args.inference_mode,
             )
             produced["graphical_active"] = anyrank_png
 

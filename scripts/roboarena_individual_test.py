@@ -19,6 +19,7 @@ from multitest.individual_test import (
     run_experiments,
     main,
 )
+from multitest.inference_modes import ANYRANK_INFERENCE_MODE_CHOICES
 from datetime import datetime
 
 date = datetime.now().strftime("%Y-%m-%d")
@@ -117,6 +118,17 @@ if __name__ == '__main__':
                         choices=ALL_METHODS,
                         metavar="METHOD",
                         help=f"Methods to run (default: all). Choices: {', '.join(ALL_METHODS)}")
+    parser.add_argument(
+        "--inference_mode",
+        type=str,
+        default="ranking_no_ties",
+        choices=ANYRANK_INFERENCE_MODE_CHOICES,
+        help=(
+            "Mirrored inference_mode threaded into MirroredContinuousNsmTest "
+            "and MirroredContinuousNsmTestAlphaAdaptive constructions. "
+            "AnyRank defaults to 'ranking_no_ties' (see ExperimentConfig)."
+        ),
+    )
     args = parser.parse_args()
     if args.subfolder is None:
         args.subfolder = date
@@ -153,20 +165,20 @@ if __name__ == '__main__':
     ## RoboArena 4 with 20 heldout evals per policy
     if exp_name == "roboarena4":
         for beta in beta_range:
-            cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
     
     if exp_name == "roboarena4_wm_prior_perfect":
             for beta in beta_range:
-                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
                 policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=cfg)
                 sim_means = real_means.copy()  # Use perfect simulation means
                 main(policy_data, policies, sim_means, real_means, bernoulli, cfg=cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     if exp_name == "roboarena4_wm_prior_imperfect":
         for beta in beta_range:
-            cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=cfg)
             real_mean_values = list(real_means.values())
             sim_means["paligemma_binning_droid"]= real_means["pi0_fast_droid"]
@@ -181,7 +193,7 @@ if __name__ == '__main__':
         for beta in beta_range:
             for run in range(nruns):
                 results_dir_run = os.path.join(results_dir, f"run_{run}")
-                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type)
+                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type, inference_mode=args.inference_mode)
                 policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=cfg)
                 sim_means = real_means.copy()  # Use perfect simulation means
                 reshuffled_policy_data = {k: np.random.permutation(v) for k, v in policy_data.items()}
@@ -193,7 +205,7 @@ if __name__ == '__main__':
         for beta in beta_range:
             for run in range(nruns):
                 results_dir_run = os.path.join(results_dir, f"run_{run}")
-                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type)
+                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type, inference_mode=args.inference_mode)
                 policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=cfg)
                 # Reshuffle the policy data to simulate a different evaluation order
                 sim_means["paligemma_binning_droid"]= real_means["pi0_fast_droid"] - 0.1
@@ -209,7 +221,7 @@ if __name__ == '__main__':
         for beta in beta_range:
             for run in range(nruns):
                 results_dir_run = os.path.join(results_dir, f"run_{run}")
-                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type)
+                cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type, inference_mode=args.inference_mode)
                 policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(cfg=cfg)
                 # Reshuffle the policy data to simulate a different evaluation order
                 reshuffled_policy_data = {k: np.random.permutation(v) for k, v in policy_data.items()}
@@ -218,7 +230,7 @@ if __name__ == '__main__':
     ## RoboArena 7 with 20 heldout evals per policy
     if exp_name == "roboarena7":
         for beta in beta_range:
-            seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=seven_policies, cfg=seven_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=seven_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
@@ -228,7 +240,7 @@ if __name__ == '__main__':
         for beta in beta_range:
             for run in range(nruns):
                 results_dir_run = os.path.join(results_dir, f"run_{run}")
-                seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type)
+                seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type, inference_mode=args.inference_mode)
                 policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=seven_policies, cfg=seven_cfg)
                 # Reshuffle the policy data to simulate a different evaluation order
                 reshuffled_policy_data = {k: np.random.permutation(v) for k, v in policy_data.items()}
@@ -237,7 +249,7 @@ if __name__ == '__main__':
     ## RoboArena WM experiment with 4 policies
     if exp_name == "roboarena4_wm_prior":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
@@ -245,7 +257,7 @@ if __name__ == '__main__':
         # Nmax_total = 2450
         Nmax_total = 2553*2
         for beta in beta_range:
-            seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=seven_policies,cfg=seven_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=seven_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
 
@@ -253,21 +265,21 @@ if __name__ == '__main__':
         Nmax_total = 2450
         # Nmax_total = 2553*2
         for beta in beta_range:
-            seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            seven_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=seven_policies,cfg=seven_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=seven_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
 
     if exp_name == "roboarena4_bradley_terry_max":
         Nmax_total = 1200
         for beta in beta_range:
-            four_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            four_cfg = ExperimentConfig(alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_experiment(selected_policies=four_policies,cfg=four_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=four_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
     
     if exp_name == "roboarena4_wm_prior_bradley_terry_max":
         Nmax_total = 1200
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
     
@@ -275,7 +287,7 @@ if __name__ == '__main__':
         # Nmax_total = 2450
         Nmax_total = 2553*2
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
 
@@ -283,7 +295,7 @@ if __name__ == '__main__':
         Nmax_total = 2450
         # Nmax_total = 2553*2
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive, Nmax_total=Nmax_total)
 
@@ -293,7 +305,7 @@ if __name__ == '__main__':
         for beta in beta_range:
             for run in range(nruns):
                 results_dir_run = os.path.join(results_dir, f"run_{run}")
-                WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type)
+                WM_cfg = ExperimentConfig(n_prior=0, alpha = args.alpha, beta=beta, results_dir=results_dir_run, graph_type=args.graph_type, inference_mode=args.inference_mode)
                 policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
                 reshuffled_policy_data = {k: np.random.permutation(v) for k, v in policy_data.items()}
                 main(reshuffled_policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
@@ -301,19 +313,19 @@ if __name__ == '__main__':
     ## RoboArena WM experiment with 7 policies
     if exp_name == "roboarena7_wm_prior":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(n_prior=0, alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(n_prior=0, alpha=args.alpha, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     if exp_name == "roboarena7_wm_prior_0.9":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(alpha=0.9, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(alpha=0.9, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             main(policy_data, policies, sim_means, real_means, bernoulli, cfg=WM_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
 
     if exp_name == "roboarena7_wm_prior_0.1_half_new_run":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             cap_samples = {k: v[:len(v)//2] for k, v in policy_data.items()}
             # cap_samples = {k: v[:50] for k, v in policy_data.items()}
@@ -321,7 +333,7 @@ if __name__ == '__main__':
 
     if exp_name == "roboarena7_wm_prior_0.1_half_plus_150":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             cap_samples = {k: v[:len(v)//2+150] for k, v in policy_data.items()}
             # cap_samples = {k: v[:50] for k, v in policy_data.items()}
@@ -329,7 +341,7 @@ if __name__ == '__main__':
 
     if exp_name == "roboarena7_wm_prior_0.1_half_plus_100":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             cap_samples = {k: v[:len(v)//2+100] for k, v in policy_data.items()}
             # cap_samples = {k: v[:50] for k, v in policy_data.items()}
@@ -337,7 +349,7 @@ if __name__ == '__main__':
 
     if exp_name == "roboarena7_wm_prior_0.1_50":
         for beta in beta_range:
-            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+            WM_cfg = ExperimentConfig(alpha=0.1, n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
             policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=seven_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=WM_cfg)
             cap_samples = {k: v[:50] for k, v in policy_data.items()}
             # cap_samples = {k: v[:50] for k, v in policy_data.items()}
@@ -345,7 +357,6 @@ if __name__ == '__main__':
 
     if exp_name == "test_fixed_sequence":
         beta = 100
-        test_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type)
+        test_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
         policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=test_cfg)
         main(policy_data, policies, sim_means, real_means, bernoulli, cfg=test_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
-

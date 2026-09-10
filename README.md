@@ -1,5 +1,5 @@
 # License
-The code is provided under a Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) license. Under the license, the code is provided royalty free for non-commercial purposes only.
+The code is provided under an Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) license. Under the license, the code is provided royalty free for non-commercial purposes only.
 
 # Installation
 ```bash
@@ -8,8 +8,22 @@ cd AnyRank
 pip install -e .
 ```
 
-**NOTE:** Conda's `environment.yml` file is deprecated. For developers that need editable pip installation, we recommend setting up a separate python virtualenv.
+**NOTE:** Conda's `environment.yml` file is deprecated. For developers who need editable pip installation, we recommend setting up a separate Python virtualenv.
 
+# Inference modes
+
+AnyRank forwards an `inference_mode` option to the mirrored sequential tests
+provided by `nscore` (>=0.1.2) and `sequentialized-barnard-tests` (>=0.0.7).
+The following options are available:
+
+- `ranking`: defines a ranking problem where exact ties in pairwise comparisons make either
+  strict ordering wrong. Less sample efficient but preserves family-wise error rate (FWER)
+  guarantee at `alpha` even if some policies have exactly the same mean performance score.
+- `ranking_no_ties` (default): defines a ranking problem with the FWER guarantee restricted to
+  the parameter space where exact ties are not considered. This is more sample efficient and
+  the default choice made in the paper.
+
+The full statistical definitions live in [`statistical_comparison_core.MirroredTestMixin`](https://github.com/TRI-ML/statistical_comparison_core/blob/v0.2.1/statistical_comparison_core/base.py#L163) (>=0.2.1).
 
 # Reproducing paper results
 ```bash

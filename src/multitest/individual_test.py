@@ -18,6 +18,7 @@ from PIL import Image as PILImage
 from multitest.sequential_graphical import SequentialGraphicalTest
 from multitest.sequential_graphical_active import SequentialGraphicalTest as ASequentialGraphicalTest
 from multitest.plot_cld import make_violin_plots_from_ttds, get_cld_letters_from_ttds
+from multitest.inference_modes import validate_inference_mode
 import pandas as pd
 
 #############################################
@@ -36,6 +37,12 @@ class ExperimentConfig:
     results_dir: str = 'outputs/roboarena_subset4'
     plot_violin: bool = True           # set to False to skip violin plots (data is always saved)
     graph_type: str = "soft_masked"    # "soft_masked" or "fully_connected"
+    # See README "Inference modes" and statistical_comparison_core.MirroredTestMixin.
+    # Do not align AnyRank's ranking_no_ties default with SCC/SBT comparison.
+    inference_mode: str = "ranking_no_ties"
+
+    def __post_init__(self):
+        self.inference_mode = validate_inference_mode(self.inference_mode)
 
 
 def get_partial_ranking(rejected_hypotheses, null_hypotheses_policy_indices, n_policies, hypotheses_correct=None):
@@ -426,6 +433,7 @@ def run_experiments(
                 num_policies=n_policies,
                 null_hypotheses=null_hypotheses_policy_indices,
                 total_alpha=alpha,
+                inference_mode=cfg.inference_mode,
             )
 
             rejected_hypotheses, rejected_hypotheses_indices, decision_times, p_values, G, graphs_over_time, alpha_at_rejected, hypotheses_correct = (
@@ -461,6 +469,7 @@ def run_experiments(
                 num_policies=n_policies,
                 null_hypotheses=null_hypotheses_policy_indices,
                 total_alpha=alpha,
+                inference_mode=cfg.inference_mode,
             )
             rejected_hypotheses_active, _, decision_times_active, _, _, graphs_over_time_active, _, hypotheses_correct_active, _ = (
                 agraphical_test.sequential_graphical_multitest(
@@ -492,6 +501,7 @@ def run_experiments(
                 num_policies=n_policies,
                 null_hypotheses=null_hypotheses_policy_indices,
                 total_alpha=alpha,
+                inference_mode=cfg.inference_mode,
             )
             rejected_hypotheses_bonferroni, decision_times_bonferroni, hypotheses_correct_bonferroni = _graphical_test_for_bonferroni.bonferroni_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax, alpha, Nmax_total=Nmax_total, bernoulli=bernoulli,
@@ -519,6 +529,7 @@ def run_experiments(
                 num_policies=n_policies,
                 null_hypotheses=null_hypotheses_policy_indices,
                 total_alpha=alpha,
+                inference_mode=cfg.inference_mode,
             )
             rejected_hypotheses_weighted_bonferroni, decision_times_weighted_bonferroni, hypotheses_correct_weighted_bonferroni = (
                 _graphical_test_for_wb.weighted_bonferroni_multitest(
@@ -549,6 +560,7 @@ def run_experiments(
                 num_policies=n_policies,
                 null_hypotheses=null_hypotheses_policy_indices,
                 total_alpha=alpha,
+                inference_mode=cfg.inference_mode,
             )
             rejected_hypotheses_fixed, decision_times_fixed, hypotheses_correct_fixed = _graphical_test_for_fixed.fixed_multitest(
                 null_hypotheses_policy_indices, policy_data, Nmax, alpha, Nmax_total=Nmax_total, bernoulli=bernoulli,
