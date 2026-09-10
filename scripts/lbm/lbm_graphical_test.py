@@ -10,6 +10,7 @@ from multitest.sequential_graphical import SequentialGraphicalTest
 import pandas as pd
 import ast
 from multitest.run_graphical_test import ExperimentConfig, main
+from multitest.inference_modes import ANYRANK_INFERENCE_MODE_CHOICES
 from pathlib import Path
 
 ########################################
@@ -192,6 +193,7 @@ if __name__ == "__main__":
         "--inference_mode",
         type=str,
         default="ranking_no_ties",
+        choices=ANYRANK_INFERENCE_MODE_CHOICES,
         help=(
             "Mirrored inference_mode threaded into MirroredContinuousNsmTest "
             "and MirroredContinuousNsmTestAlphaAdaptive constructions. "

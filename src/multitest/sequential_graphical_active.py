@@ -9,6 +9,7 @@ import networkx as nx
 import copy
 from multitest.transivity import transitive_closure_relations
 import os
+from multitest.inference_modes import validate_inference_mode
 
 class SequentialGraphicalTest:
     def __init__(
@@ -20,7 +21,7 @@ class SequentialGraphicalTest:
     ):
         # See README "Inference modes" and statistical_comparison_core.MirroredTestMixin.
         # Do not align AnyRank's ranking_no_ties default with SCC/SBT comparison.
-        self.inference_mode = inference_mode
+        self.inference_mode = validate_inference_mode(inference_mode)
         self.total_alpha = total_alpha # total alpha is the family-wise error rate we want to control, so we will be working with 1 - total_alpha as the error budget to allocate
         self.num_policies=num_policies # number of policies
         self.num_hypotheses = len(null_hypotheses) # number of hypotheses

@@ -5,20 +5,23 @@ site because it is a ranking tool with no baseline policy. These tests pin
 that default, prove that ``ranking_no_ties`` is byte-identical to the
 previous unspecified default on both graphical classes, prove that
 ``inference_mode="ranking"`` actually reaches the mirrored child tests and
-halves their child alpha, prove that an invalid mode surfaces SCC's
-``ValueError``, prove that ``ExperimentConfig`` carries the mode into the
-saved ``config.json``, and prove that ``compare_to_step`` under the default
-mode does not trigger real STEP policy synthesis on disk.
+halves their child alpha, prove that AnyRank rejects modes outside its ranking
+semantics before delegating to SCC/SBT, prove that ``ExperimentConfig`` carries
+the mode into the saved ``config.json``, and prove that ``compare_to_step``
+under the default mode does not trigger real STEP policy synthesis on disk.
 """
 
 import copy
 import json
 import os
+import subprocess
+import sys
 from dataclasses import asdict
 
 import numpy as np
 import pytest
 
+from multitest.inference_modes import ANYRANK_INFERENCE_MODE_CHOICES
 from multitest.sequential_graphical import SequentialGraphicalTest
 from multitest.sequential_graphical_active import (
     SequentialGraphicalTest as ASequentialGraphicalTest,
@@ -35,6 +38,20 @@ def _sample_policy_data(seed=0, n_rows=200, num_policies=3):
 
 def _sample_hypotheses():
     return [(0, 1), (0, 2), (1, 2)]
+
+
+def _assert_bogus_mode_message(message):
+    assert "Invalid AnyRank inference_mode 'bogus'" in message
+    for mode in ANYRANK_INFERENCE_MODE_CHOICES:
+        assert mode in message
+
+
+def _assert_comparison_mode_message(message):
+    assert "inference_mode='comparison'" in message
+    assert "not applicable in AnyRank" in message
+    assert "reports rankings" in message
+    assert "no baseline policy" in message
+    assert 'README "Inference modes"' in message
 
 
 def _run_passive(sgt, hypotheses, policy_data, Nmax=50):
@@ -174,33 +191,116 @@ def test_ranking_mode_active_initializer_halves_child_alpha():
     assert mirrored._test_for_null.alpha == pytest.approx(alpha / 2.0)
 
 
-# --- invalid mode surfaces SCC's ValueError ---------------------------------
+# --- invalid modes are rejected by AnyRank before reaching SCC/SBT ----------
 
 
-def test_invalid_inference_mode_surfaces_scc_value_error():
-    sgt = SequentialGraphicalTest(
-        num_policies=3,
-        null_hypotheses=_sample_hypotheses(),
-        total_alpha=0.05,
-        inference_mode="bogus",
-    )
+def test_invalid_inference_mode_rejected_by_passive_constructor():
     with pytest.raises(ValueError) as excinfo:
-        sgt.initialize_graphical_nsm_test(Nmax=200, alpha=0.02)
-    message = str(excinfo.value)
-    assert "bogus" in message
-    for mode in ("comparison", "ranking", "ranking_no_ties"):
-        assert mode in message
+        SequentialGraphicalTest(
+            num_policies=3,
+            null_hypotheses=_sample_hypotheses(),
+            total_alpha=0.05,
+            inference_mode="bogus",
+        )
+    _assert_bogus_mode_message(str(excinfo.value))
 
 
-def test_invalid_inference_mode_active_surfaces_scc_value_error():
-    sgt = ASequentialGraphicalTest(
-        num_policies=3,
-        null_hypotheses=_sample_hypotheses(),
-        total_alpha=0.05,
-        inference_mode="bogus",
+def test_invalid_inference_mode_active_rejected_by_constructor():
+    with pytest.raises(ValueError) as excinfo:
+        ASequentialGraphicalTest(
+            num_policies=3,
+            null_hypotheses=_sample_hypotheses(),
+            total_alpha=0.05,
+            inference_mode="bogus",
+        )
+    _assert_bogus_mode_message(str(excinfo.value))
+
+
+def test_comparison_inference_mode_rejected_with_anyrank_guidance(monkeypatch):
+    from multitest.fixed_sequence_transitive import FixedSequenceTransitive
+    from multitest.graphical import GraphicalTest
+    from multitest.individual_test import ExperimentConfig as IndCfg
+    from multitest.run_graphical_test import ExperimentConfig as RunCfg
+
+    monkeypatch.setattr(
+        "multitest.fixed_sequence_transitive.os.makedirs",
+        lambda *args, **kwargs: None,
     )
-    with pytest.raises(ValueError):
-        sgt.initialize_graphical_nsm_test(Nmax=200, alpha=0.02)
+    factories = [
+        lambda: SequentialGraphicalTest(3, _sample_hypotheses(), inference_mode="comparison"),
+        lambda: ASequentialGraphicalTest(3, _sample_hypotheses(), inference_mode="comparison"),
+        lambda: GraphicalTest(3, _sample_hypotheses(), inference_mode="comparison"),
+        lambda: FixedSequenceTransitive(3, _sample_hypotheses(), inference_mode="comparison"),
+        lambda: IndCfg(inference_mode="comparison"),
+        lambda: RunCfg(inference_mode="comparison"),
+    ]
+
+    for factory in factories:
+        with pytest.raises(ValueError) as excinfo:
+            factory()
+        _assert_comparison_mode_message(str(excinfo.value))
+
+
+@pytest.mark.parametrize("mode", ANYRANK_INFERENCE_MODE_CHOICES)
+def test_allowed_inference_modes_are_accepted_at_public_entrypoints(mode, monkeypatch):
+    from multitest.fixed_sequence_transitive import FixedSequenceTransitive
+    from multitest.graphical import (
+        GraphicalTest,
+        bonferroni_multitest,
+        graphical_multitest,
+        initialize_bonferroni_test,
+        initialize_nsm_test,
+    )
+    from multitest.individual_test import ExperimentConfig as IndCfg
+    from multitest.run_graphical_test import ExperimentConfig as RunCfg
+
+    monkeypatch.setattr(
+        "multitest.fixed_sequence_transitive.os.makedirs",
+        lambda *args, **kwargs: None,
+    )
+    hypotheses = _sample_hypotheses()
+    policy_data = (_sample_policy_data(seed=8, n_rows=30) > 0.5).astype(int)
+
+    assert SequentialGraphicalTest(3, hypotheses, inference_mode=mode).inference_mode == mode
+    assert ASequentialGraphicalTest(3, hypotheses, inference_mode=mode).inference_mode == mode
+    assert GraphicalTest(3, hypotheses, inference_mode=mode).inference_mode == mode
+    assert FixedSequenceTransitive(3, hypotheses, inference_mode=mode).inference_mode == mode
+    assert IndCfg(inference_mode=mode).inference_mode == mode
+    assert RunCfg(inference_mode=mode).inference_mode == mode
+    bonferroni_test = initialize_bonferroni_test(
+        20, 0.05, len(hypotheses), inference_mode=mode
+    )
+    nsm_test = initialize_nsm_test(20, 0.05, inference_mode=mode)
+    assert bonferroni_test._inference_mode == mode
+    assert nsm_test._inference_mode == mode
+
+    bonferroni_multitest(hypotheses, policy_data, Nmax=20, alpha=0.05, inference_mode=mode)
+    graphical_multitest(hypotheses, policy_data, Nmax=20, alpha=0.05, inference_mode=mode)
+
+
+def test_script_argparse_rejects_invalid_inference_mode():
+    repo = os.path.dirname(os.path.dirname(__file__))
+    env = os.environ.copy()
+    src = os.path.join(repo, "src")
+    env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/tests/compare_to_step.py",
+            "--inference_mode",
+            "bogus",
+        ],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "invalid choice" in result.stderr
+    for mode in ANYRANK_INFERENCE_MODE_CHOICES:
+        assert mode in result.stderr
 
 
 # --- ExperimentConfig default and saved-config behavior ---------------------
@@ -286,7 +386,7 @@ def test_compare_to_step_default_does_not_trigger_step_policy_synthesis(
 # --- module-level graphical.py entrypoints thread inference_mode -----------
 
 
-def test_module_bonferroni_multitest_invalid_mode_surfaces_scc_value_error():
+def test_module_bonferroni_multitest_invalid_mode_rejected_by_anyrank():
     from multitest.graphical import bonferroni_multitest
 
     hypotheses = _sample_hypotheses()
@@ -301,12 +401,10 @@ def test_module_bonferroni_multitest_invalid_mode_surfaces_scc_value_error():
             inference_mode="bogus",
         )
     message = str(excinfo.value)
-    assert "bogus" in message
-    for mode in ("comparison", "ranking", "ranking_no_ties"):
-        assert mode in message
+    _assert_bogus_mode_message(message)
 
 
-def test_module_graphical_multitest_invalid_mode_surfaces_scc_value_error():
+def test_module_graphical_multitest_invalid_mode_rejected_by_anyrank():
     from multitest.graphical import graphical_multitest
 
     hypotheses = _sample_hypotheses()
@@ -321,9 +419,7 @@ def test_module_graphical_multitest_invalid_mode_surfaces_scc_value_error():
             inference_mode="bogus",
         )
     message = str(excinfo.value)
-    assert "bogus" in message
-    for mode in ("comparison", "ranking", "ranking_no_ties"):
-        assert mode in message
+    _assert_bogus_mode_message(message)
 
 
 def test_module_bonferroni_multitest_ranking_reaches_child_alpha(monkeypatch):

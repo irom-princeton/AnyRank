@@ -19,6 +19,7 @@ from multitest.individual_test import (
     run_experiments,
     main,
 )
+from multitest.inference_modes import ANYRANK_INFERENCE_MODE_CHOICES
 
 np.random.seed(42)
 
@@ -152,6 +153,7 @@ if __name__ == '__main__':
         "--inference_mode",
         type=str,
         default="ranking_no_ties",
+        choices=ANYRANK_INFERENCE_MODE_CHOICES,
         help=(
             "Mirrored inference_mode threaded into MirroredContinuousNsmTest "
             "and MirroredContinuousNsmTestAlphaAdaptive constructions. "

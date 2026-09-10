@@ -7,6 +7,7 @@ from math import comb
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
+from multitest.inference_modes import validate_inference_mode
 
 class GraphicalTest:
     def __init__(
@@ -18,7 +19,7 @@ class GraphicalTest:
     ):
         # AnyRank is a ranking tool with no baseline policy, so its default is
         # ``ranking_no_ties`` rather than SCC/SBT's ``comparison`` default.
-        self.inference_mode = inference_mode
+        self.inference_mode = validate_inference_mode(inference_mode)
         self.total_alpha = total_alpha # total alpha is the family-wise error rate we want to control, so we will be working with 1 - total_alpha as the error budget to allocate
         self.num_policies=num_policies # number of policies
         self.num_hypotheses = len(null_hypotheses) # number of hypotheses
@@ -186,6 +187,7 @@ class GraphicalTest:
         return rejected, graphs_over_time
 
 def initialize_bonferroni_test(Nmax, alpha, num_hypotheses, inference_mode="ranking_no_ties"):
+    inference_mode = validate_inference_mode(inference_mode)
     #bonferroni_step_test = StepTest(Hypothesis.P0LessThanP1, Nmax, alpha/num_hypotheses)
     bonferroni_step_test = MirroredContinuousNsmTest(
             alternative=Hypothesis.P0LessThanP1, alpha=alpha/num_hypotheses, c=np.arange(2),
@@ -198,6 +200,7 @@ def initialize_step_test(Nmax, alpha):
     return step_test
 
 def initialize_nsm_test(Nmax, alpha, inference_mode="ranking_no_ties"):
+    inference_mode = validate_inference_mode(inference_mode)
     nonparametric_nsm_test = MirroredContinuousNsmTest(
             alternative=Hypothesis.P0LessThanP1, alpha=alpha, c=np.arange(2),
             inference_mode=inference_mode,
@@ -213,6 +216,7 @@ def bonferroni_multitest(ordered_hypotheses_policy_indices, policy_data, Nmax, a
     Given an ordered list of hypotheses, perform Bonferroni corrected individual tests
     Return the list of rejected hypotheses along with their decision times
     '''
+    inference_mode = validate_inference_mode(inference_mode)
     rejected_hypotheses = []
     decision_times = {}
     num_hypotheses = len(ordered_hypotheses_policy_indices)
@@ -247,6 +251,7 @@ def graphical_multitest(ordered_hypotheses_policy_indices, policy_data, Nmax, al
     Return the list of rejected hypotheses along with their decision times
     # We will represent a hypothesis as a policy pair (p0, p1) and by default use it to indicate H0: p0 <= p1 vs H1: p0 > p1
     '''
+    inference_mode = validate_inference_mode(inference_mode)
     rejected_hypotheses = []
     decision_times = {}
     num_hypotheses = len(ordered_hypotheses_policy_indices)

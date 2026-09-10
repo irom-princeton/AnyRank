@@ -47,6 +47,7 @@ from multitest.individual_test import (
     main as anyrank_main,
 )
 from multitest.plot_cld import make_violin_plots_from_ttds
+from multitest.inference_modes import ANYRANK_INFERENCE_MODE_CHOICES
 
 from sequentialized_barnard_tests.base import Decision, Hypothesis
 from sequentialized_barnard_tests.step import MirroredStepTest
@@ -327,6 +328,7 @@ def main():
         "--inference_mode",
         type=str,
         default="ranking_no_ties",
+        choices=ANYRANK_INFERENCE_MODE_CHOICES,
         help=(
             "Shared inference_mode for STEP and AnyRank. "
             "'ranking' halves the STEP policy alpha and can trigger one-time "

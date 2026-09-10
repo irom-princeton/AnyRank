@@ -19,6 +19,7 @@ from multitest.individual_test import (
     run_experiments,
     main,
 )
+from multitest.inference_modes import ANYRANK_INFERENCE_MODE_CHOICES
 from datetime import datetime
 
 date = datetime.now().strftime("%Y-%m-%d")
@@ -121,6 +122,7 @@ if __name__ == '__main__':
         "--inference_mode",
         type=str,
         default="ranking_no_ties",
+        choices=ANYRANK_INFERENCE_MODE_CHOICES,
         help=(
             "Mirrored inference_mode threaded into MirroredContinuousNsmTest "
             "and MirroredContinuousNsmTestAlphaAdaptive constructions. "
@@ -358,4 +360,3 @@ if __name__ == '__main__':
         test_cfg = ExperimentConfig(n_prior=0, beta=beta, results_dir=results_dir(exp_name), graph_type=args.graph_type, inference_mode=args.inference_mode)
         policy_data, policies, sim_means, real_means, bernoulli = roboarena_wm_experiment(selected_policies=four_policies, wm_prior_path='data/roboarena/wm_evals/evaluations.csv', cfg=test_cfg)
         main(policy_data, policies, sim_means, real_means, bernoulli, cfg=test_cfg, labels=plot_policy_names, methods=methods, allow_transitive=args.transitive)
-

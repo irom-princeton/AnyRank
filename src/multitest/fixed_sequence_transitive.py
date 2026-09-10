@@ -8,6 +8,7 @@ from nscore.nonparametric_nsm import ContinuousNsmTest, MirroredContinuousNsmTes
 from sequentialized_barnard_tests.step import MirroredStepTest
 import numpy as np
 from multitest.transivity import transitive_closure_relations, transitive_decision_times
+from multitest.inference_modes import validate_inference_mode
 
 class FixedSequenceTransitive:
     def __init__(
@@ -20,7 +21,7 @@ class FixedSequenceTransitive:
     ):
         # AnyRank is a ranking tool with no baseline policy, so its default is
         # ``ranking_no_ties`` rather than SCC/SBT's ``comparison`` default.
-        self.inference_mode = inference_mode
+        self.inference_mode = validate_inference_mode(inference_mode)
         repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.total_alpha = total_alpha # total alpha is the family-wise error rate we want to control, so we will be working with 1 - total_alpha as the error budget to allocate
         self.num_policies=num_policies # number of policies

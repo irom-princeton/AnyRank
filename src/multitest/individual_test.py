@@ -18,6 +18,7 @@ from PIL import Image as PILImage
 from multitest.sequential_graphical import SequentialGraphicalTest
 from multitest.sequential_graphical_active import SequentialGraphicalTest as ASequentialGraphicalTest
 from multitest.plot_cld import make_violin_plots_from_ttds, get_cld_letters_from_ttds
+from multitest.inference_modes import validate_inference_mode
 import pandas as pd
 
 #############################################
@@ -39,6 +40,9 @@ class ExperimentConfig:
     # See README "Inference modes" and statistical_comparison_core.MirroredTestMixin.
     # Do not align AnyRank's ranking_no_ties default with SCC/SBT comparison.
     inference_mode: str = "ranking_no_ties"
+
+    def __post_init__(self):
+        self.inference_mode = validate_inference_mode(self.inference_mode)
 
 
 def get_partial_ranking(rejected_hypotheses, null_hypotheses_policy_indices, n_policies, hypotheses_correct=None):

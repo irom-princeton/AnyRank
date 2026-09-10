@@ -9,6 +9,7 @@ from PIL import Image as PILImage
 import pandas as pd
 import ast
 from multitest.individual_test import ExperimentConfig, main
+from multitest.inference_modes import ANYRANK_INFERENCE_MODE_CHOICES
 from pathlib import Path
 from datetime import datetime
 import scipy.stats as stats
@@ -165,6 +166,7 @@ if __name__ == "__main__":
         "--inference_mode",
         type=str,
         default="ranking_no_ties",
+        choices=ANYRANK_INFERENCE_MODE_CHOICES,
         help=(
             "Mirrored inference_mode threaded into MirroredContinuousNsmTest "
             "and MirroredContinuousNsmTestAlphaAdaptive constructions. "
@@ -216,4 +218,3 @@ if __name__ == "__main__":
     #     run_graphical_carrot(wm="specialist", init_cond="all", beta=beta, labels=plot_policy_names, subfolder=args.subfolder, graph_type=args.graph_type, methods=methods, allow_transitive=args.transitive, inference_mode=args.inference_mode)
 
     
-
