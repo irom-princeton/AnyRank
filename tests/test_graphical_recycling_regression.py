@@ -152,6 +152,84 @@ class TestGraphicalCleanupBehavior:
 
         assert not (tmp_path / "imglib").exists()
 
+    def test_batch_rng_default_uses_global_numpy_choice(
+        self, tmp_path, monkeypatch,
+    ):
+        sgt = SequentialGraphicalTest(
+            num_policies=2,
+            null_hypotheses=[(0.5, 0.5)],
+            total_alpha=0.05,
+        )
+        policy_data = np.column_stack([
+            np.ones(20),
+            np.zeros(20),
+        ])
+        calls = []
+
+        def fake_choice(a, p):
+            calls.append((a, p.copy()))
+            return 0
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(np.random, "choice", fake_choice)
+
+        sgt.sequential_graphical_multitest(
+            ordered_hypotheses_policy_indices=[(0, 1)],
+            policy_data=policy_data,
+            Nmax=20,
+            alpha_per_hypothesis=sgt.alpha.copy(),
+            bernoulli=True,
+            allow_transitive=False,
+            verbose=False,
+        )
+
+        assert calls
+        assert calls[0][0] == 1
+        assert calls[0][1] == pytest.approx([1.0])
+
+    def test_batch_rng_argument_bypasses_global_numpy_choice(
+        self, tmp_path, monkeypatch,
+    ):
+        sgt = SequentialGraphicalTest(
+            num_policies=2,
+            null_hypotheses=[(0.5, 0.5)],
+            total_alpha=0.05,
+        )
+        policy_data = np.column_stack([
+            np.ones(20),
+            np.zeros(20),
+        ])
+
+        class ChoiceRecorder:
+            def __init__(self):
+                self.calls = []
+
+            def choice(self, a, p):
+                self.calls.append((a, p.copy()))
+                return 0
+
+        def fail_global_choice(*_args, **_kwargs):
+            raise AssertionError("explicit rng must bypass np.random.choice")
+
+        rng = ChoiceRecorder()
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(np.random, "choice", fail_global_choice)
+
+        sgt.sequential_graphical_multitest(
+            ordered_hypotheses_policy_indices=[(0, 1)],
+            policy_data=policy_data,
+            Nmax=20,
+            alpha_per_hypothesis=sgt.alpha.copy(),
+            bernoulli=True,
+            allow_transitive=False,
+            verbose=False,
+            rng=rng,
+        )
+
+        assert rng.calls
+        assert rng.calls[0][0] == 1
+        assert rng.calls[0][1] == pytest.approx([1.0])
+
 
 class TestActiveLoopPerformanceShape:
     """Regression coverage for the performance-oriented active-loop cleanups."""

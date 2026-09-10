@@ -422,10 +422,13 @@ class SequentialGraphicalTest:
         return decision_str, time_of_decision
 
 
-    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False, bernoulli=False, allow_transitive=True, Nmax_total=None, beta=1.0):
+    def sequential_graphical_multitest(self, ordered_hypotheses_policy_indices, policy_data, Nmax, alpha_per_hypothesis=None, weighted_G=None, verbose=False, bernoulli=False, allow_transitive=True, Nmax_total=None, beta=1.0, rng=None):
         '''
         Similar to graphical_multitest but we will run the graphical test sequentially after each new p-value is computed and update the graph and alpha budgets accordingly.
         '''
+        if rng is None:
+            rng = np.random
+
         rejected_hypotheses = []
         decision_times = {hypothesis: "N/A" for hypothesis in ordered_hypotheses_policy_indices}
         num_hypotheses = len(ordered_hypotheses_policy_indices)
@@ -522,7 +525,7 @@ class SequentialGraphicalTest:
                 p_select_hypothesis_to_sample = tmp / np.sum(tmp)
                 assert np.isclose(np.sum(p_select_hypothesis_to_sample), 1.0)
                 # Select index according to this distribution
-                hypothesis_idx_to_sample = np.random.choice(active_alpha.shape[0], p=p_select_hypothesis_to_sample)
+                hypothesis_idx_to_sample = rng.choice(active_alpha.shape[0], p=p_select_hypothesis_to_sample)
             
             policy_0_index, policy_1_index = ordered_hypotheses_policy_indices[hypothesis_idx_to_sample]
             if policy_counts[policy_0_index] <= policy_counts[policy_1_index]:
