@@ -1,5 +1,5 @@
 # License
-The code is provided under the MIT license. It depends on [`statistical-comparison-core`](https://github.com/TRI-ML/statistical_comparison_core) and [`sequentialized-barnard-tests`](https://github.com/TRI-ML/sequentialized_barnard_tests), which is separately licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) license. They are not included in this repository or distribution. Users should review their license statements before usage.
+The code is provided under the MIT license. It depends on [`statistical-comparison-core`](https://github.com/TRI-ML/statistical_comparison_core) and [`sequentialized-barnard-tests`](https://github.com/TRI-ML/sequentialized_barnard_tests), which are separately licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) license. They are not included in this repository. Users should review their license statements before usage.
 
 # Installation
 ```bash
