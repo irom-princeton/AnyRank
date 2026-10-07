@@ -1,0 +1,492 @@
+<title>AnyRank</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,420;0,9..144,560;0,9..144,650;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #f5f6f9;
+    --surface: #ffffff;
+    --surface-tint: #eef0fa;
+    --ink: #1a2138;
+    --ink-soft: #525c71;
+    --ink-faint: #828ca3;
+    --border: #dde1ea;
+    --accent: #2f5aa3;
+    --accent-ink: #1f3e78;
+    --accent-amber: #c97a2b;
+    --accent-amber-soft: #f4e3cd;
+    --shadow: 0 1px 2px rgba(26,33,56,0.04), 0 8px 24px rgba(26,33,56,0.05);
+    --max: 760px;
+    --wide: 1040px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10131c;
+      --surface: #161b27;
+      --surface-tint: #1b2133;
+      --ink: #e9ecf4;
+      --ink-soft: #a7afc3;
+      --ink-faint: #717b94;
+      --border: #2a3142;
+      --accent: #85a8e0;
+      --accent-ink: #cdddf6;
+      --accent-amber: #e4a35b;
+      --accent-amber-soft: #3a2d1c;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #10131c;
+    --surface: #161b27;
+    --surface-tint: #1b2133;
+    --ink: #e9ecf4;
+    --ink-soft: #a7afc3;
+    --ink-faint: #717b94;
+    --border: #2a3142;
+    --accent: #85a8e0;
+    --accent-ink: #cdddf6;
+    --accent-amber: #e4a35b;
+    --accent-amber-soft: #3a2d1c;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    max-width: var(--wide);
+    margin: 0 auto;
+    padding: 64px 28px 48px;
+  }
+
+  .col {
+    max-width: var(--max);
+    margin: 0 auto;
+  }
+
+  h1, h2, h3 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  /* ---------- Header ---------- */
+
+  header.col { text-align: center; max-width: 820px; }
+
+  .eyebrow {
+    display: inline-block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--surface-tint);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 5px 14px;
+    margin-bottom: 22px;
+  }
+
+  h1.title {
+    font-size: clamp(2rem, 1.55rem + 2vw, 2.9rem);
+    line-height: 1.12;
+  }
+
+  h1.title .algname { color: var(--accent-amber); }
+
+  .subtitle {
+    font-family: "Fraunces", Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
+    color: var(--ink-soft);
+    margin-top: 10px;
+  }
+
+  .authors {
+    margin-top: 30px;
+    font-size: 1.02rem;
+    color: var(--ink);
+    line-height: 1.8;
+  }
+
+  .authors .eq { color: var(--ink-faint); }
+
+  .affiliations {
+    margin-top: 8px;
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+  }
+
+  .affiliations .note {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+  }
+
+  .links {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .pill {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--surface);
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 9px;
+    padding: 9px 18px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  .pill:hover { opacity: 0.88; }
+  .pill:focus-visible { outline: 2px solid var(--accent-amber); outline-offset: 2px; }
+
+  .pill.ghost {
+    color: var(--ink);
+    background: var(--surface);
+    border-color: var(--border);
+  }
+
+  .pill.soon {
+    color: var(--ink-faint);
+    background: var(--surface);
+    border-color: var(--border);
+    cursor: not-allowed;
+  }
+  .pill.soon:hover { opacity: 1; }
+
+  /* ---------- Sections ---------- */
+
+  section { margin-top: 76px; }
+
+  .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 14px;
+    display: block;
+  }
+
+  h2.heading { font-size: 1.5rem; }
+
+  p { color: var(--ink); margin: 16px 0 0; }
+  .col p:first-of-type { margin-top: 14px; }
+
+  em.alg { color: var(--accent-amber); font-style: normal; font-weight: 600; }
+
+  /* ---------- Teaser ---------- */
+
+  figure.wide {
+    margin: 0;
+    width: 100%;
+  }
+  figure.wide img {
+    width: 100%;
+    display: block;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  figcaption {
+    margin-top: 14px;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    max-width: var(--max);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  figcaption strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- Properties row ---------- */
+
+  .properties {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 18px;
+  }
+  .property {
+    background: var(--surface);
+    padding: 26px 24px;
+  }
+  .property h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    font-family: "IBM Plex Sans", sans-serif;
+    color: var(--ink);
+  }
+  .property p {
+    font-size: 0.93rem;
+    color: var(--ink-soft);
+    margin-top: 8px;
+  }
+  .property .mark {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  @media (max-width: 720px) {
+    .properties { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- Stat callout ---------- */
+
+  .stat {
+    margin-top: 76px;
+    text-align: center;
+    padding: 40px 24px;
+    background: var(--surface-tint);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+  .stat .big {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 650;
+    font-size: clamp(2.6rem, 2rem + 2.5vw, 4rem);
+    color: var(--accent-amber);
+    line-height: 1;
+  }
+  .stat p {
+    max-width: 520px;
+    margin: 12px auto 0;
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+  }
+
+  /* ---------- Results ---------- */
+
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+    margin-top: 18px;
+    align-items: start;
+  }
+  .results-grid figure img {
+    width: 100%;
+    display: block;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .results-grid figcaption { max-width: none; }
+
+  @media (max-width: 760px) {
+    .results-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- BibTeX ---------- */
+
+  .bibtex {
+    position: relative;
+    margin-top: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .bibtex pre {
+    margin: 0;
+    padding: 22px 24px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.84rem;
+    line-height: 1.7;
+    color: var(--ink-soft);
+  }
+  .bibtex .key { color: var(--accent); }
+  .bibtex .field { color: var(--ink-faint); }
+
+  .copy-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .copy-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+
+  /* ---------- Footer ---------- */
+
+  footer {
+    margin-top: 90px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+  }
+  footer p { color: var(--ink-faint); margin-top: 6px; }
+
+  hr.rule {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 76px 0 0;
+  }
+</style>
+
+<div class="shell">
+
+  <header class="col">
+    <span class="eyebrow">CoRL 2026</span>
+    <h1 class="title"><span class="algname">AnyRank</span>: Reliable Anytime Policy Ranking via Sequential Testing</h1>
+
+    <div class="authors">
+      Apurva Badithela<sup class="eq">*,1</sup> &nbsp;·&nbsp;
+      David Snyder<sup class="eq">*,2</sup> &nbsp;·&nbsp;
+      Tenny Yin<sup>1</sup> &nbsp;·&nbsp;
+      Jade Sceats<sup>1</sup><br class="br-mobile">
+      &nbsp;·&nbsp; George Pappas<sup>2</sup> &nbsp;·&nbsp;
+      Nikolai Matni<sup>2</sup> &nbsp;·&nbsp;
+      Masha Itkina<sup>3</sup> &nbsp;·&nbsp;
+      Haruki Nishimura<sup>3</sup> &nbsp;·&nbsp;
+      Anirudha Majumdar<sup>1</sup>
+    </div>
+    <div class="affiliations">
+      <sup>1</sup>Princeton University &nbsp;&nbsp; <sup>2</sup>University of Pennsylvania &nbsp;&nbsp; <sup>3</sup>Toyota Research Institute
+      <span class="note">* Equal contribution</span>
+    </div>
+
+    <div class="links">
+      <a class="pill soon" title="Add the arXiv / proceedings PDF link here">Paper (PDF)</a>
+      <a class="pill" href="https://github.com/irom-princeton/AnyRank" target="_blank" rel="noopener">Code</a>
+      <a class="pill ghost" href="#bibtex">BibTeX</a>
+    </div>
+  </header>
+
+  <section>
+    <figure class="wide">
+      <img src="assets/teaser.png" alt="Overview of AnyRank: prior information forms a weighted hypothesis graph, which informs an active sequential evaluation protocol over policy trials, producing a provably bounded-error policy ranking.">
+    </figure>
+    <figcaption><strong>Rigorous policy ranking with AnyRank.</strong> Prior information is used to form a weighted multi-hypothesis graph, which in turn informs an active sequential evaluation protocol that minimizes expected sample complexity. The resulting ranking has a provably bounded, tunable error rate with near-minimal hardware evaluations.</figcaption>
+  </section>
+
+  <section class="col">
+    <span class="label">Abstract</span>
+    <p>
+      Due to the high cost of hardware experiments, robot policies are predominantly evaluated by comparing their empirical performance on a limited number of hardware trials. However, finite-sample statistical uncertainty can lead to erroneous conclusions, especially when ranking multiple policies using a fixed batch of evaluation data. We propose <em class="alg">AnyRank</em>: a <em>sequential</em> method for multi-policy ranking that (i) <em>adaptively allocates trials</em> to hard-to-separate policies, (ii) provides (partial) rankings at <em>any stopping time</em> while bounding the probability of an incorrect ranking, and (iii) optionally <em>exploits prior information</em> to prioritize hardware evaluations more efficiently. This prior information could be informed from expert intuition, a small set of held-out hardware evaluations, or from policy rollouts in a simulator or an action-conditioned video world model. Notably, the prior can be imperfect; while a strong prior can provide efficiency gains on hardware, any inaccuracies in prior policy rankings do not invalidate the statistical assurances of <em class="alg">AnyRank</em>. We achieve the aforementioned properties through novel theoretical contributions that combine sequential testing with multiple-hypothesis graphical testing approaches. Experiments in simulation and real-world policy evaluation benchmarks show that <em class="alg">AnyRank</em> requires up to 50% fewer hardware evaluations compared to existing statistically rigorous approaches, while guarding against the incorrect rankings produced by heuristic methods used by state-of-the-art benchmarks.
+    </p>
+  </section>
+
+  <section class="col">
+    <span class="label">Why it's hard</span>
+    <h2 class="heading">Three properties, together</h2>
+    <p>Prior statistically-rigorous methods for ranking policies typically satisfy at most one of these at a time. AnyRank is designed to hold all three simultaneously.</p>
+    <div class="properties">
+      <div class="property">
+        <span class="mark">01</span>
+        <h3>Anytime-valid</h3>
+        <p>Returns a (partial) ranking at any stopping time with a bounded probability of error — more evaluations can always be collected without the risk of p-hacking.</p>
+      </div>
+      <div class="property">
+        <span class="mark">02</span>
+        <h3>Sample-efficient</h3>
+        <p>Actively allocates hardware trials to the policies that are hardest to statistically separate, instead of spending evaluations uniformly.</p>
+      </div>
+      <div class="property">
+        <span class="mark">03</span>
+        <h3>Prior-safe</h3>
+        <p>Optionally exploits priors from simulation, a world model, or expert intuition to save samples — an imperfect prior never invalidates the guarantees.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="stat">
+    <div class="big">up to 50%</div>
+    <p>fewer hardware evaluations than existing statistically rigorous ranking methods, while avoiding the incorrect rankings that heuristic approaches used by state-of-the-art benchmarks can produce.</p>
+  </div>
+
+  <section class="col" style="max-width: var(--wide);">
+    <span class="label">Results</span>
+    <h2 class="heading">Reliable rankings, fewer trials</h2>
+    <p>AnyRank is evaluated on real-world policy evaluation benchmarks, including <a href="#" style="color:var(--accent)">RoboArena</a> and the TRI-LBM dataset. It consistently recovers rankings that are statistically sound and self-consistent across stopping times, while existing Bradley–Terry and Bonferroni-style baselines either overstate confidence or burn far more hardware trials to reach the same conclusions.</p>
+
+    <div class="results-grid">
+      <figure>
+        <img src="assets/ranking-example.png" alt="Violin plots of task progress for seven RoboArena policies, with compact letter groupings showing AnyRank's statistically distinguishable ranking.">
+        <figcaption>AnyRank's ranking of seven DROID policies from RoboArena, shown as compact letter groupings over violin plots of raw task-progress scores. Policies sharing a letter are not statistically distinguishable.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/sample-efficiency.png" alt="Bar chart comparing the number of hardware evaluations needed by AnyRank, AnyRank with no prior, and Bonferroni-style baselines to fully rank four held-out RoboArena policies.">
+        <figcaption>On a held-out RoboArena ranking task, AnyRank reaches a full ranking (6/6 hypotheses resolved) in roughly half the hardware evaluations required by Bonferroni-style baselines, which also leave some comparisons unresolved.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section class="col" id="bibtex">
+    <span class="label">Cite this work</span>
+    <h2 class="heading">BibTeX</h2>
+    <div class="bibtex">
+      <button class="copy-btn" onclick="copyBibtex(this)">Copy</button>
+      <pre id="bibtex-text"><span class="field">@inproceedings</span>{badithela2026anyrank,
+  <span class="key">title</span>     = {<span class="alg-text">AnyRank</span>: Reliable Anytime Policy Ranking via Sequential Testing},
+  <span class="key">author</span>    = {Badithela, Apurva and Snyder, David and Yin, Tenny and Sceats, Jade and Pappas, George and Matni, Nikolai and Itkina, Masha and Nishimura, Haruki and Majumdar, Anirudha},
+  <span class="key">booktitle</span> = {Conference on Robot Learning (CoRL)},
+  <span class="key">year</span>     = {2026}
+}</pre>
+    </div>
+  </section>
+
+  <footer>
+    <p>Apurva Badithela &amp; David Snyder contributed equally.</p>
+    <p>Princeton University &nbsp;·&nbsp; University of Pennsylvania &nbsp;·&nbsp; Toyota Research Institute</p>
+  </footer>
+
+</div>
+
+<script>
+  function copyBibtex(btn) {
+    const text = document.getElementById('bibtex-text').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      const prev = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = prev; }, 1500);
+    });
+  }
+</script>
