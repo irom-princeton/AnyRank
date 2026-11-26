@@ -177,18 +177,23 @@ class SequentialGraphicalTest:
                 break
 
             if allow_transitive:
+                # Read directions from updated_hypotheses_correct, which also
+                # holds directions recorded earlier in this call: direct
+                # rejections and transitive implications. A queued implied
+                # candidate therefore keeps its closure direction instead of
+                # its own undecided p-value type.
                 rejected_at_curr_step = [hypotheses[i] for i in rejected]
-                hyp_correct_at_curr_step = {hypotheses[i]: hypotheses_correct[hypotheses[i]] for i in rejected}
+                hyp_correct_at_curr_step = {hypotheses[i]: updated_hypotheses_correct[hypotheses[i]] for i in rejected}
                 for candidate in candidates:
                     h = hypotheses[candidate]
                     if h not in rejected_at_curr_step:
                         rejected_at_curr_step.append(h)
-                    
+
                     if h not in hyp_correct_at_curr_step:
-                        if hypotheses_correct[h] == 0.0: # if we haven't already rejected this hypothesis, we can reject it based on the current set of rejections and the graph structure
-                            hyp_correct_at_curr_step[h] = 1.0 if p_value_types[candidate] == "alternative" else -1.0
+                        if updated_hypotheses_correct[h] == 0.0: # direction not yet recorded: use the test's current p-value type
+                            hyp_correct_at_curr_step[h] = -1.0 if p_value_types[candidate] == "null" else 1.0
                         else:
-                            hyp_correct_at_curr_step[h] = hypotheses_correct[h]
+                            hyp_correct_at_curr_step[h] = updated_hypotheses_correct[h]
                 
                 closure = transitive_closure_relations(rejected_at_curr_step, hyp_correct_at_curr_step, n_policies=num_policies)
                 
@@ -223,8 +228,13 @@ class SequentialGraphicalTest:
             i = candidates[0]
             transitive_queue.discard(i)
 
-            # Reject i
+            # Reject i, recording its direction if neither the pairwise test's
+            # own decision nor a transitive implication has set it yet.
             rejected.add(i)
+            if updated_hypotheses_correct[hypotheses[i]] == 0.0:
+                updated_hypotheses_correct[hypotheses[i]] = (
+                    -1.0 if p_value_types[i] == "null" else 1.0
+                )
             alpha_at_rejected.append(copy.deepcopy(self.alpha[i]))
             active = [j for j in range(self.num_hypotheses) if j not in rejected]
 
