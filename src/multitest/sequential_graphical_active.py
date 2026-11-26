@@ -181,6 +181,15 @@ class SequentialGraphicalTest:
             i = candidates[0]
             transitive_queue.discard(i)
 
+            # Record the accepted direction before computing transitive
+            # implications, so the closure below includes this rejection.
+            # A direction already set (by the pairwise test's own decision or
+            # by an earlier transitive implication) is kept.
+            if hypotheses_correct[hypotheses[i]] == 0.0:
+                direction = -1.0 if p_value_types[i] == "null" else 1.0
+                hypotheses_correct[hypotheses[i]] = direction
+                updated_hypotheses_correct[hypotheses[i]] = direction
+
             if verbose:
                 print(f"Candidate hypotheses to reject at this step: {candidates}. We will reject hypothesis H{i} with p-value {p[i]:.4e} <= alpha {self.alpha[i]:.4e}")
             
@@ -200,12 +209,13 @@ class SequentialGraphicalTest:
                 for hyp in closure["implied"]:
                     if hyp[0] == hyp[1]: # no self hypotheses
                         continue
+                    # An implied edge (a, b) means mu_a < mu_b. Its direction is
+                    # fixed by the closure, not by the implied pair's own
+                    # (undecided) p-value type.
                     if hyp in hypotheses:
                         idx = hypotheses.index(hyp)
                         h_store = hyp
                         direction=1.0
-                        if p_value_types[idx] == "null":
-                            direction = -1.0
                     else:
                         h_store = (hyp[1], hyp[0])
                         idx = hypotheses.index(h_store)
@@ -227,21 +237,8 @@ class SequentialGraphicalTest:
                 print(self.G)
             
             
-            # Reject i
+            # Reject i (its direction was recorded above, before the closure).
             rejected.add(i)
-
-            # If we have not yet correctly marked this, the default is to mark pi0 < pi1 if it is rejected. 
-            # Where does it get correctly marked?
-            if hypotheses_correct[hypotheses[i]] == 0.0: # if we haven't already marked this hypothesis as correct
-                if p_value_types[i] != "null":
-                    hypotheses_correct[hypotheses[i]] = 1.0 
-                    updated_hypotheses_correct[hypotheses[i]] = 1.0
-                else:
-                    hypotheses_correct[hypotheses[i]] = -1.0
-                    updated_hypotheses_correct[hypotheses[i]] = -1.0
-
-            # hypotheses_correct[hypotheses[i]] = 1.0 if p_value_types[i] == "alternative"
-            # updated_hypotheses_correct[hypotheses[i]] = 1.0 if p_value_types[i] == "alternative"
 
             alpha_at_rejected.append((hypotheses[i], copy.deepcopy(self.alpha[i])))
             active = [j for j in range(self.num_hypotheses) if j not in rejected]
